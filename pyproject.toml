@@ -1,20 +1,39 @@
 [project]
 name = "ver-github-pages"
 version = "0.1.0"
-description = "Add your description here"
+description = "A high-performance CLI auditor for GitHub repositories, Pages, and releases without API rate limits."
 readme = "README.md"
+license = { text = "MIT" }
 authors = [
     { name = "Alberto Ortiz", email = "albertoortixsanchez@gmail.com" }
 ]
-requires-python = ">=3.13"
+keywords = ["github", "github-pages", "auditor", "cli", "scraping", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Utilities",
+]
+requires-python = ">=3.10"
 dependencies = [
-    "dotenv>=0.9.9",
-    "python-dotenv>=1.2.4",
-    "requests>=2.34.2",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/alberto2005-coder/ver-github-pages"
+Repository = "https://github.com/alberto2005-coder/ver-github-pages"
+Issues = "https://github.com/alberto2005-coder/ver-github-pages/issues"
+
 [project.scripts]
-ver-github-pages = "ver_github_pages:main"
+ver-github-pages = "ver_github_pages.main:analizar_repositorios"
 
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]
