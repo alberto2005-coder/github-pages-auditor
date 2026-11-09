@@ -1,6 +1,17 @@
+import os
 import re
 import requests
 from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
+
+# Cargar las variables definidas en el archivo .env
+load_dotenv()
+
+# Obtener variables con valores por defecto de respaldo
+USUARIO_GITHUB = os.getenv("USUARIO_GITHUB", "alberto2005-coder")
+DOMINIO_WEB = os.getenv("DOMINIO_WEB", "https://albertoortiz.is-a.dev")
+ARCHIVO_SALIDA = os.getenv("ARCHIVO_SALIDA", "paginas_github.txt")
+
 
 def obtener_todos_los_repositorios_web(username):
     repos = []
@@ -27,14 +38,15 @@ def obtener_todos_los_repositorios_web(username):
 
         page += 1
 
-    return list(dict.fromkeys(repos))  # Eliminar duplicados
+    return list(dict.fromkeys(repos))
+
 
 def analizar_detalles_repo(username, nombre_repo):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-    # 1. Releases (vía Atom feed)
+    # 1. Releases (feed Atom)
     atom_url = f"https://github.com/{username}/{nombre_repo}/releases.atom"
     try:
         res_atom = requests.get(atom_url, headers=headers, timeout=5)
@@ -42,7 +54,7 @@ def analizar_detalles_repo(username, nombre_repo):
     except Exception:
         has_releases = False
 
-    # 2. Análisis del HTML principal del repositorio
+    # 2. Análisis del repositorio público
     repo_url = f"https://github.com/{username}/{nombre_repo}"
     has_readme = False
     has_license = False
@@ -56,25 +68,19 @@ def analizar_detalles_repo(username, nombre_repo):
         if res_repo.status_code == 200:
             html = res_repo.text
             
-            # README
             if 'id="readme"' in html or 'README.md' in html or 'readme-icon' in html:
                 has_readme = True
                 
-            # Licencia
             if 'License' in html or 'license-icon' in html or 'LICENSE' in html:
                 has_license = True
 
-            # .gitignore
             if '.gitignore' in html:
                 has_gitignore = True
 
-            # Descripción (About)
             if 'f6 link-gray-dark' in html or 'repository-content' in html:
-                # Comprobar si tiene el bloque de descripción relleno
                 if 'No description, website, or topics provided.' not in html:
                     has_description = True
 
-            # Fork y Archived
             if 'forked from' in html:
                 is_fork = True
             if 'This repository has been archived' in html or 'Label--warning' in html:
@@ -86,8 +92,11 @@ def analizar_detalles_repo(username, nombre_repo):
     return (nombre_repo, has_releases, has_readme, has_license, 
             has_gitignore, has_description, is_fork, is_archived)
 
-def analizar_repositorios(username, dominio_personalizado, archivo_salida="paginas_github.txt"):
-    print("🔍 Obteniendo lista de repositorios desde la web pública...")
+
+def analizar_repositorios(username, dominio_personalizado, archivo_salida):
+    print(f"⚙️ Configuración cargada desde .env (Usuario: {username})")
+    print("🔍 Obteniendo repositorios desde la web pública...")
+    
     repos = obtener_todos_los_repositorios_web(username)
 
     if not repos:
@@ -95,7 +104,7 @@ def analizar_repositorios(username, dominio_personalizado, archivo_salida="pagin
         return
 
     print(f"📦 Se encontraron {len(repos)} repositorios.")
-    print("⚡ Realizando auditoría completa (Pages, Releases, README, Licencia, .gitignore, etc.)...")
+    print("⚡ Auditoría en paralelo (Pages, Releases, README, Licencia, .gitignore, About, Forks, Archivados)...")
 
     con_pages = []
     con_releases = []
@@ -107,14 +116,12 @@ def analizar_repositorios(username, dominio_personalizado, archivo_salida="pagin
     es_fork_list = []
     archivados_list = []
 
-    # Procesar peticiones en paralelo
     with ThreadPoolExecutor(max_workers=15) as executor:
         resultados = executor.map(lambda r: analizar_detalles_repo(username, r), repos)
 
     for (nombre_repo, has_releases, has_readme, has_license, 
          has_gitignore, has_description, is_fork, is_archived) in resultados:
         
-        # 1. Comprobar GitHub Pages
         es_principal = nombre_repo.lower() in [f"{username.lower()}.github.io", username.lower()]
         url_pages = dominio_personalizado if es_principal else f"{dominio_personalizado}/{nombre_repo}/"
         
@@ -131,7 +138,6 @@ def analizar_repositorios(username, dominio_personalizado, archivo_salida="pagin
             except Exception:
                 pass
 
-        # 2. Categorizar resultados
         if has_releases:
             con_releases.append(f"- {nombre_repo}")
 
@@ -156,7 +162,6 @@ def analizar_repositorios(username, dominio_personalizado, archivo_salida="pagin
         if is_archived:
             archivados_list.append(f"- {nombre_repo}")
 
-    # 3. Construir reporte final
     lineas = [
         f"=== ENLACES DE GITHUB PAGES PARA: {username} ===",
         f"Dominio base: {dominio_personalizado}\n"
@@ -193,10 +198,8 @@ def analizar_repositorios(username, dominio_personalizado, archivo_salida="pagin
     with open(archivo_salida, "w", encoding="utf-8") as f:
         f.write(resultado_texto + "\n")
 
-    print(f"\n✅ Auditoría completa guardada en '{archivo_salida}'")
+    print(f"\n✅ Guardado correctamente en '{archivo_salida}'")
 
-# Configuración
-USUARIO_GITHUB = "alberto2005-coder"
-DOMINIO_WEB = "https://albertoortiz.is-a.dev"
 
-analizar_repositorios(USUARIO_GITHUB, DOMINIO_WEB)
+if __name__ == "__main__":
+    analizar_repositorios(USUARIO_GITHUB, DOMINIO_WEB, ARCHIVO_SALIDA)

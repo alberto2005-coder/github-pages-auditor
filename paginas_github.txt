@@ -99,3 +99,40 @@ Dominio base: https://albertoortiz.is-a.dev
 - geometrydashdotcom
 - ClientReportManager
 - yt-sponsor-skip
+
+=== REPOSITORIOS SIN .GITIGNORE ===
+- alberto2005-coder
+- TwistSort3D
+- Interactive-Web-Template
+- Discordbot_rolplay
+- Software-de-gestion-de-museo
+- BotGuard_discord
+- Calculadora-Android
+- Ajedrez
+- Generador-passwords-seguras
+- Discordbot_generador
+- geometrydashdotcom
+- yt-sponsor-skip
+- spring-boot-thymeleaf-fullstack-demos
+- Pac-Man
+- 3-en-raya
+
+=== REPOSITORIOS SIN DESCRIPCIÓN (ABOUT) ===
+- alberto2005-coder
+- yt-sponsor-skip
+
+=== REPOSITORIOS QUE SON FORKS ===
+- register
+- NyxEditor
+- Idea_Board
+- web-dashers.github.io
+- geometrydashdotcom
+- Bot-juegos
+- website
+- ClientReportManager
+- yt-sponsor-skip
+- Openseed
+- Proyecto_ficheros
+
+=== REPOSITORIOS ARCHIVADOS ===
+No hay repositorios archivados.
