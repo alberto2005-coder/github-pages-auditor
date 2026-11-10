@@ -162,7 +162,6 @@ ver-github-pages/
 │       ├── pages.py       # Verificación de URLs de GitHub Pages
 │       └── report.py     # Generador de consola (Rich) y archivo .txt
 └── tests/                # Tests unitarios automatizados
-    ├── conftest.py
     ├── test_config.py
     ├── test_github_api.py
     ├── test_github_web.py
@@ -337,7 +336,6 @@ ver-github-pages/
 │       ├── pages.py       # GitHub Pages URL verification
 │       └── report.py     # Console (Rich) and text report renderer
 └── tests/                # Automated unit tests
-    ├── conftest.py
     ├── test_config.py
     ├── test_github_api.py
     ├── test_github_web.py
