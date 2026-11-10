@@ -1,7 +1,7 @@
 [project]
 name = "ver-github-pages"
-version = "0.1.0"
-description = "A high-performance CLI auditor for GitHub repositories, Pages, and releases without API rate limits."
+version = "0.2.0"
+description = "High-performance CLI auditor for GitHub repositories, Pages, and releases (API & scraping support)."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
@@ -23,9 +23,10 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "pytest>=9.2.0",
     "python-dotenv>=1.0.0",
     "requests>=2.31.0",
-    "rich>=15.0.0",
+    "rich>=13.0.0",
 ]
 
 [project.urls]
@@ -34,7 +35,16 @@ Repository = "https://github.com/alberto2005-coder/ver-github-pages"
 Issues = "https://github.com/alberto2005-coder/ver-github-pages/issues"
 
 [project.scripts]
-ver-github-pages = "ver_github_pages.main:analizar_repositorios"
+ver-github-pages = "ver_github_pages.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]

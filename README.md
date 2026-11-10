@@ -7,7 +7,9 @@
 <a name="español"></a>
 # Español
 
-Una herramienta de línea de comandos en Python diseñada para auditar repositorios de GitHub. Permite mapear enlaces de GitHub Pages con dominio personalizado, verificar lanzamientos y evaluar la calidad de la documentación (README, Licencia, `.gitignore` y descripción) sin sufrir restricciones de tasa de peticiones en la API (Error 403 HTTP) gracias a procesamiento en paralelo y feeds públicos.
+Una herramienta de línea de comandos en Python diseñada para auditar repositorios de GitHub. Permite mapear enlaces de GitHub Pages con dominio personalizado, verificar lanzamientos y evaluar la calidad de la documentación (README, Licencia, `.gitignore` y descripción) sin requerir obligatoriamente un archivo de configuración `.env` ni credenciales.
+
+Cuenta con soporte para autenticación mediante Personal Access Token (Key) por parámetro para consultas a la API oficial de GitHub, así como un motor de respaldo por scraping público en paralelo.
 
 ## Índice
 
@@ -15,10 +17,10 @@ Una herramienta de línea de comandos en Python diseñada para auditar repositor
 2. [Arquitectura y Solución Técnica](#arquitectura-y-solución-técnica-es)
 3. [Requisitos Previos](#requisitos-previos-es)
 4. [Instalación](#instalación-es)
-5. [Configuración](#configuración-es)
-6. [Uso](#uso-es)
-7. [Estructura del Proyecto](#estructura-del-proyecto-es)
-8. [Estructura del Reporte](#estructura-del-reporte-es)
+5. [Uso por Línea de Comandos](#uso-por-línea-de-comandos-es)
+6. [Jerarquía de Configuración](#jerarquía-de-configuración-es)
+7. [Pruebas Automatizadas](#pruebas-automatizadas-es)
+8. [Estructura del Proyecto](#estructura-del-proyecto-es)
 9. [Licencia](#licencia-es)
 
 ---
@@ -26,28 +28,27 @@ Una herramienta de línea de comandos en Python diseñada para auditar repositor
 <a name="características-es"></a>
 ## Características
 
-- **Mapeo de GitHub Pages:** Asigna automáticamente el dominio raíz o la subruta correspondiente según el repositorio.
-- **Detección de Releases:** Identifica lanzamientos publicados sin consumir cuota de la API REST.
+- **Mapeo Real de GitHub Pages:** Identifica despliegues activos evaluando respuestas HTTP y siguiendo redirecciones para evitar falsos positivos.
+- **Soporte Dual (API + Scraping):** Funciona mediante la API REST oficial de GitHub o a través de scraping público y feeds Atom sin necesidad de API Key ni archivo `.env`.
 - **Auditoría de Calidad:**
   - Repositorios sin archivo `README`
   - Repositorios sin archivo de `Licencia`
   - Repositorios sin `.gitignore`
   - Repositorios sin Descripción (About)
 - **Clasificación:** Identifica repositorios que son *Forks* o que están *Archivados*.
-- **Rendimiento:** Ejecución multihilo optimizada mediante `ThreadPoolExecutor`.
-- **Portabilidad:** Gestión de variables de entorno con archivo `.env`.
+- **Rendimiento:** Ejecución multihilo optimizada mediante `ThreadPoolExecutor` para análisis de código y validación web.
+- **Consola Interactiva:** Salida formateada con tablas y paneles visuales mediante `Rich`.
 
 ---
 
 <a name="arquitectura-y-solución-técnica-es"></a>
 ## Arquitectura y Solución Técnica
 
-La API pública REST de GitHub impone un límite estricto de 60 peticiones/hora para usuarios no autenticados. Al auditar múltiples repositorios, este límite provoca errores `403 Rate Limit Exceeded`.
+La API pública REST de GitHub impone un límite de 60 peticiones/hora a usuarios no autenticados, lo que provoca errores `403 Rate Limit Exceeded` al auditar múltiples repositorios.
 
-Esta herramienta soluciona dicha limitación mediante las siguientes técnicas:
-- **Navegación Web Directa:** Obtiene la lista completa de repositorios consultando el perfil público HTML de GitHub.
-- **Atom Feeds:** Consulta la presencia de versiones o lanzamientos a través de feeds Atom públicos (`/releases.atom`), los cuales no consumen la cuota de la API REST.
-- **Verificación Multihilo:** Utiliza `concurrent.futures.ThreadPoolExecutor` para procesar el análisis de repositorios en paralelo, reduciendo el tiempo de ejecución a pocos segundos.
+Esta herramienta resuelve esta limitación mediante dos enfoques:
+1. **Modo API (Con Key):** Si se proporciona un Personal Access Token por parámetro o entorno, la herramienta realiza peticiones masivas a la API oficial, elevando la cuota a 5.000 peticiones/hora.
+2. **Modo Scraping (Sin Key):** Si no hay clave disponible, analiza el HTML público del perfil de GitHub y consulta los lanzamientos a través de feeds Atom públicos (`/releases.atom`), los cuales no consumen cuota de la API REST.
 
 ---
 
@@ -82,41 +83,57 @@ Esta herramienta soluciona dicha limitación mediante las siguientes técnicas:
 
 ---
 
-<a name="configuración-es"></a>
-## Configuración
+<a name="uso-por-línea-de-comandos-es"></a>
+## Uso por Línea de Comandos
 
-Crea un archivo llamado `.env` en la raíz del proyecto. Puedes guiarte del siguiente modelo:
+Los parámetros se pueden pasar directamente por la consola sin necesidad de crear ni modificar un archivo `.env`.
 
-```env
-USUARIO_GITHUB=alberto2005-coder
-DOMINIO_WEB=https://albertoortiz.is-a.dev
-ARCHIVO_SALIDA=paginas_github.txt
+### Ejemplo 1: Ejecución básica (sin clave ni token)
+```bash
+uv run ver-github-pages -u alberto2005-coder
 ```
 
-### Parámetros de configuración
+### Ejemplo 2: Especificando dominio personalizado y token de API
+```bash
+uv run ver-github-pages -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_tu_token_aqui
+```
 
-| Variable | Descripción | Ejemplo |
-| :--- | :--- | :--- |
-| `USUARIO_GITHUB` | Nombre de usuario exacto en GitHub | `alberto2005-coder` |
-| `DOMINIO_WEB` | Dominio personalizado o base de despliegue | `https://albertoortiz.is-a.dev` |
-| `ARCHIVO_SALIDA` | Nombre del archivo `.txt` donde se guardará el informe | `paginas_github.txt` |
+### Ejemplo 3: Forzar modo scraping y cambiar archivo de salida
+```bash
+uv run ver-github-pages -u alberto2005-coder --no-api -o mi_reporte.txt
+```
+
+### Opciones de la CLI
+
+| Parámetro | Alternativa | Descripción | Obligatorio |
+| :--- | :--- | :--- | :--- |
+| `-u` | `--usuario` / `--user` | Nombre de usuario de GitHub | **Sí** |
+| `-w` | `--web` / `--dominio` | Dominio base para GitHub Pages | No (default: `https://<usuario>.github.io`) |
+| `-k` | `--key` / `--token` | GitHub Personal Access Token | No |
+| `-o` | `--output` | Ruta del archivo de salida | No (default: `paginas_github.txt`) |
+| `--no-api` | - | Forzar scraping público ignorando la API Key | No |
+| `--no-color` | - | Desactivar salida con colores en la consola | No |
 
 ---
 
-<a name="uso-es"></a>
-## Uso
+<a name="jerarquía-de-configuración-es"></a>
+## Jerarquía de Configuración
 
-Para ejecutar el análisis, corre el script principal según el gestor que utilices:
+El programa evalúa la configuración respetando el siguiente orden de prioridad:
+1. **Argumentos de línea de comandos** (Ej: `-u`, `-w`, `-k`).
+2. **Variables en el archivo `.env`** (si existe en la raíz del proyecto).
+3. **Valores por defecto del sistema**.
 
-- **Con `uv`:**
-  ```bash
-  uv run main.py
-  ```
+---
 
-- **Con `python`:**
-  ```bash
-  python main.py
-  ```
+<a name="pruebas-automatizadas-es"></a>
+## Pruebas Automatizadas
+
+El proyecto incluye una suite de tests unitarios con `pytest` que simula respuestas HTTP para validar la lógica sin consumir cuotas de GitHub:
+
+```bash
+uv run pytest
+```
 
 ---
 
@@ -125,45 +142,32 @@ Para ejecutar el análisis, corre el script principal según el gestor que utili
 
 ```text
 ver-github-pages/
-├── .env                  # Variables de entorno local
-├── .env.example          # Plantilla de variables de entorno
+├── .env.example          # Plantilla opcional de variables de entorno
 ├── .gitignore            # Archivos excluidos del control de versiones
 ├── LICENSE               # Licencia del proyecto
 ├── README.md             # Documentación unificada (Español / Inglés)
-├── main.py               # Script principal de ejecución
-└── requirements.txt      # Archivo de dependencias
-```
-
----
-
-<a name="estructura-del-reporte-es"></a>
-## Estructura del Reporte
-
-Al finalizar el análisis, la herramienta genera un archivo `.txt` detallado:
-
-```text
-=== ENLACES DE GITHUB PAGES PARA: usuario ===
-Dominio base: https://dominio.dev
-
-- repositorio-demo               -> https://dominio.dev/repositorio-demo/
-
-=== REPOSITORIOS CON RELEASES ===
-- repositorio-demo
-
-=== REPOSITORIOS SIN RELEASES NI GITHUB PAGES ===
-- otro-proyecto
-
-=== REPOSITORIOS SIN README ===
-- proyecto-sin-readme
-
-=== REPOSITORIOS SIN LICENCIA ===
-- proyecto-sin-licencia
-
-=== REPOSITORIOS SIN .GITIGNORE ===
-- proyecto-sin-gitignore
-
-=== REPOSITORIOS SIN DESCRIPCIÓN (ABOUT) ===
-- proyecto-sin-descripcion
+├── pyproject.toml        # Configuración del paquete y dependencias
+├── requirements.txt      # Archivo de dependencias para pip
+├── src/
+│   └── ver_github_pages/
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── audit.py       # Orquestador de la auditoría
+│       ├── config.py      # Parser de argumentos CLI y entorno
+│       ├── github_api.py  # Proveedor de datos vía API oficial
+│       ├── github_web.py  # Proveedor de datos vía Scraping público
+│       ├── http.py        # Cliente HTTP con soporte para reintentos
+│       ├── main.py        # Punto de entrada de la CLI
+│       ├── models.py      # Estructuras de datos
+│       ├── pages.py       # Verificación de URLs de GitHub Pages
+│       └── report.py     # Generador de consola (Rich) y archivo .txt
+└── tests/                # Tests unitarios automatizados
+    ├── conftest.py
+    ├── test_config.py
+    ├── test_github_api.py
+    ├── test_github_web.py
+    ├── test_pages.py
+    └── test_report.py
 ```
 
 ---
@@ -178,7 +182,9 @@ Este proyecto se distribuye bajo la Licencia MIT. Consulta el archivo [LICENSE](
 <a name="english"></a>
 # English
 
-A Python CLI tool designed to audit GitHub repositories. It maps GitHub Pages URLs with custom domains, verifies published releases, and checks documentation quality (README, License, `.gitignore`, and description) — without hitting API rate limits (Error 403 HTTP) by leveraging parallel processing and public feeds.
+A Python CLI tool designed to audit GitHub repositories. It maps GitHub Pages URLs with custom domains, verifies published releases, and checks documentation quality (README, License, `.gitignore`, and description) — without requiring a `.env` configuration file or credentials.
+
+Supports authentication via GitHub Personal Access Tokens (Key) passed via CLI arguments, as well as an automatic public web scraping fallback mechanism.
 
 ## Table of Contents
 
@@ -186,10 +192,10 @@ A Python CLI tool designed to audit GitHub repositories. It maps GitHub Pages UR
 2. [Architecture and Technical Solution](#architecture-and-technical-solution-en)
 3. [Prerequisites](#prerequisites-en)
 4. [Installation](#installation-en)
-5. [Configuration](#configuration-en)
-6. [Usage](#usage-en)
-7. [Project Structure](#project-structure-en)
-8. [Report Structure](#report-structure-en)
+5. [CLI Usage](#cli-usage-en)
+6. [Configuration Precedence](#configuration-precedence-en)
+7. [Automated Tests](#automated-tests-en)
+8. [Project Structure](#project-structure-en)
 9. [License](#license-en)
 
 ---
@@ -197,28 +203,27 @@ A Python CLI tool designed to audit GitHub repositories. It maps GitHub Pages UR
 <a name="features-en"></a>
 ## Features
 
-- **GitHub Pages Mapping:** Automatically assigns root domains or project subpaths based on repository naming.
-- **Release Tracking:** Detects published releases without consuming REST API quotas.
+- **Real GitHub Pages Mapping:** Validates active deployments by evaluating HTTP status codes and following redirects to prevent false positives.
+- **Dual-Mode Support (API + Scraping):** Operates through the official GitHub REST API or public web scraping via Atom feeds without requiring an API key or `.env` file.
 - **Quality Audit:**
   - Repositories missing a `README` file
   - Repositories missing a `License` file
   - Repositories missing `.gitignore`
   - Repositories missing About/Description
 - **Categorization:** Flags repositories that are *Forks* or *Archived*.
-- **Performance:** Optimized multi-threaded execution using `ThreadPoolExecutor`.
-- **Portability:** Environment variable management via `.env` file.
+- **Performance:** Multi-threaded execution powered by `ThreadPoolExecutor` for code analysis and URL verification.
+- **Interactive Output:** Clean console UI formatted with tables and panels built with `Rich`.
 
 ---
 
 <a name="architecture-and-technical-solution-en"></a>
 ## Architecture and Technical Solution
 
-The GitHub REST API enforces a strict rate limit of 60 requests per hour for unauthenticated users. When auditing multiple repositories, this constraint leads to `403 Rate Limit Exceeded` errors.
+The unauthenticated GitHub REST API enforces a rate limit of 60 requests per hour, leading to `403 Rate Limit Exceeded` errors when auditing multiple repositories.
 
-This tool bypasses API restrictions through the following techniques:
-- **Direct Web Navigation:** Fetches the repository list from the user's public GitHub profile HTML.
-- **Atom Feeds:** Checks for published releases using public Atom feeds (`/releases.atom`), which do not affect REST API quotas.
-- **Multi-threaded Verification:** Employs `concurrent.futures.ThreadPoolExecutor` to process repository checks in parallel, completing execution in seconds.
+This tool resolves API limits through two operational modes:
+1. **API Mode (With Key):** Passing a Personal Access Token via CLI flag or environment variable switches to official API endpoints, increasing the limit to 5,000 requests/hour.
+2. **Scraping Mode (Keyless):** Parses the public HTML profile and fetches release information via public Atom feeds (`/releases.atom`), bypassing API quota limits.
 
 ---
 
@@ -239,7 +244,7 @@ This tool bypasses API restrictions through the following techniques:
    cd ver-github-pages
    ```
 
-2. Install dependencies:
+2. Install the required dependencies:
 
    - **Using `uv` (Recommended):**
      ```bash
@@ -253,41 +258,57 @@ This tool bypasses API restrictions through the following techniques:
 
 ---
 
-<a name="configuration-en"></a>
-## Configuration
+<a name="cli-usage-en"></a>
+## CLI Usage
 
-Create a file named `.env` in the root directory:
+All configuration options can be supplied directly through the command line without requiring a `.env` file.
 
-```env
-USUARIO_GITHUB=alberto2005-coder
-DOMINIO_WEB=https://albertoortiz.is-a.dev
-ARCHIVO_SALIDA=paginas_github.txt
+### Example 1: Basic execution (Keyless)
+```bash
+uv run ver-github-pages -u alberto2005-coder
 ```
 
-### Configuration Parameters
+### Example 2: Passing custom domain and API key/token
+```bash
+uv run ver-github-pages -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_your_token_here
+```
 
-| Variable | Description | Example |
-| :--- | :--- | :--- |
-| `USUARIO_GITHUB` | Exact GitHub username | `alberto2005-coder` |
-| `DOMINIO_WEB` | Custom domain or base deployment URL | `https://albertoortiz.is-a.dev` |
-| `ARCHIVO_SALIDA` | Output `.txt` filename for the report | `paginas_github.txt` |
+### Example 3: Force web scraping mode and set custom output path
+```bash
+uv run ver-github-pages -u alberto2005-coder --no-api -o my_report.txt
+```
+
+### CLI Flags Reference
+
+| Flag | Alternative | Description | Required |
+| :--- | :--- | :--- | :--- |
+| `-u` | `--usuario` / `--user` | GitHub username | **Yes** |
+| `-w` | `--web` / `--dominio` | Base domain for GitHub Pages | No (default: `https://<user>.github.io`) |
+| `-k` | `--key` / `--token` | GitHub Personal Access Token | No |
+| `-o` | `--output` | Output `.txt` report file path | No (default: `paginas_github.txt`) |
+| `--no-api` | - | Force web scraping mode ignoring API Key | No |
+| `--no-color` | - | Disable colorized console output | No |
 
 ---
 
-<a name="usage-en"></a>
-## Usage
+<a name="configuration-precedence-en"></a>
+## Configuration Precedence
 
-Run the main script using your preferred tool:
+Configurations are resolved in the following priority order:
+1. **Command-line flags** (e.g., `-u`, `-w`, `-k`).
+2. **`.env` file variables** (if present in the root directory).
+3. **Built-in default values**.
 
-- **Using `uv`:**
-  ```bash
-  uv run main.py
-  ```
+---
 
-- **Using `python`:**
-  ```bash
-  python main.py
-  ```
+<a name="automated-tests-en"></a>
+## Automated Tests
+
+The repository includes a suite of unit tests powered by `pytest` that mock HTTP responses to validate logic without consuming GitHub quotas:
+
+```bash
+uv run pytest
+```
 
 ---
 
@@ -296,45 +317,32 @@ Run the main script using your preferred tool:
 
 ```text
 ver-github-pages/
-├── .env                  # Local environment variables
 ├── .env.example          # Environment variables template
 ├── .gitignore            # Files excluded from version control
 ├── LICENSE               # Project license
 ├── README.md             # Unified documentation (Spanish / English)
-├── main.py               # Main execution script
-└── requirements.txt      # Dependencies file
-```
-
----
-
-<a name="report-structure-en"></a>
-## Report Structure
-
-After completion, the tool outputs a formatted `.txt` report:
-
-```text
-=== ENLACES DE GITHUB PAGES PARA: username ===
-Dominio base: https://domain.dev
-
-- demo-repository               -> https://domain.dev/demo-repository/
-
-=== REPOSITORIOS CON RELEASES ===
-- demo-repository
-
-=== REPOSITORIOS SIN RELEASES NI GITHUB PAGES ===
-- other-project
-
-=== REPOSITORIOS SIN README ===
-- project-without-readme
-
-=== REPOSITORIOS SIN LICENCIA ===
-- project-without-license
-
-=== REPOSITORIOS SIN .GITIGNORE ===
-- project-without-gitignore
-
-=== REPOSITORIOS SIN DESCRIPCIÓN (ABOUT) ===
-- project-without-description
+├── pyproject.toml        # Package configuration and dependencies
+├── requirements.txt      # Dependencies file for pip
+├── src/
+│   └── ver_github_pages/
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── audit.py       # Audit orchestrator
+│       ├── config.py      # CLI arguments and environment parser
+│       ├── github_api.py  # Data provider via GitHub REST API
+│       ├── github_web.py  # Data provider via web scraping
+│       ├── http.py        # HTTP client with retry logic
+│       ├── main.py        # CLI entrypoint
+│       ├── models.py      # Data structures
+│       ├── pages.py       # GitHub Pages URL verification
+│       └── report.py     # Console (Rich) and text report renderer
+└── tests/                # Automated unit tests
+    ├── conftest.py
+    ├── test_config.py
+    ├── test_github_api.py
+    ├── test_github_web.py
+    ├── test_pages.py
+    └── test_report.py
 ```
 
 ---
