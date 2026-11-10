@@ -10,12 +10,15 @@ class GitHubWebProvider:
         self.dominio = dominio
         self.session = session
 
-    def obtener_repositorios(self) -> List[RepoInfo]:
+    def obtener_repositorios(self, on_progress=None) -> List[RepoInfo]:
         nombres = []
         page = 1
         headers = {"Accept": "text/html"}
 
         while True:
+            if on_progress:
+                on_progress(page, len(nombres))
+
             url = f"https://github.com/{self.usuario}?page={page}&tab=repositories"
             res = self.session.get(url, headers=headers)
             

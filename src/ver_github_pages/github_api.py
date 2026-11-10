@@ -9,7 +9,7 @@ class GitHubAPIProvider:
         self.dominio = dominio
         self.session = session
 
-    def obtener_repositorios(self) -> List[RepoInfo]:
+    def obtener_repositorios(self, on_progress=None) -> List[RepoInfo]:
         repos: List[RepoInfo] = []
         page = 1
         
