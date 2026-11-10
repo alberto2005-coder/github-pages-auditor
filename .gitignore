@@ -29,3 +29,7 @@ ENV/
 # OS specific files
 .DS_Store
 Thumbs.db
+
+#cache
+.pytest_cache/
+__pycache__/
