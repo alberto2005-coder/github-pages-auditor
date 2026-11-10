@@ -31,6 +31,15 @@ ENV/
 .DS_Store
 Thumbs.db
 
-#cache
-.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Python cache files
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
