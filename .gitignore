@@ -21,6 +21,7 @@ ENV/
 
 # Project outputs
 *.txt
+!requirements.txt
 
 # Editor / IDE settings
 .vscode/
