@@ -20,7 +20,7 @@ ENV/
 !.env.example
 
 # Project outputs
-paginas_github.txt
+*.txt
 
 # Editor / IDE settings
 .vscode/
