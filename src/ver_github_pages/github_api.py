@@ -1,5 +1,5 @@
 import requests
-from typing import List, Tuple
+from typing import List
 from .models import RepoInfo
 from . import pages
 
@@ -9,7 +9,7 @@ class GitHubAPIProvider:
         self.dominio = dominio
         self.session = session
 
-    def obtener_repositorios(() -> List[RepoInfo]:
+    def obtener_repositorios(self) -> List[RepoInfo]:
         repos: List[RepoInfo] = []
         page = 1
         
