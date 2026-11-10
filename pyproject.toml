@@ -1,6 +1,6 @@
 [project]
 name = "ver-github-pages"
-version = "0.2.0"
+version = "1.0.0"
 description = "High-performance CLI auditor for GitHub repositories, Pages, and releases (API & scraping support)."
 readme = "README.md"
 license = { text = "MIT" }
