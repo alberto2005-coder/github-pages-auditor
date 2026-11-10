@@ -1,45 +1,84 @@
-# Python-generated files
+# ==========================================
+# Environments & Packages
+# ==========================================
+.venv/
+venv/
+ENV/
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# NOTE: NO ignorar uv.lock (debe versionarse)
+
+# ==========================================
+# Python Cache & Bytecode
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
-build/
-dist/
-wheels/
-*.egg-info/
+*.so
 
-# Virtual environments
-.venv/
-env/
-venv/
-ENV/
-.environments
-
-# Environment variables
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
 .env
 .env.*
 !.env.example
 
-# Project outputs
-*.txt
-!requirements.txt
+# ==========================================
+# Testing, Coverage & Cache
+# ==========================================
+.pytest_cache/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+htmlcov/
+.hypothesis/
+.nox/
+.tox/
+.ruff_cache/
+.mypy_cache/
 
+# ==========================================
 # Editor / IDE settings
+# ==========================================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# OS specific files
+# ==========================================
+# OS Specific Files
+# ==========================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-
-# Virtual environment
-.venv/
-venv/
-ENV/
-
-# Python cache files
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
+# ==========================================
+# Project Outputs & Logs
+# ==========================================
+*.log
+*.tmp
+*.txt
+!requirements.txt
