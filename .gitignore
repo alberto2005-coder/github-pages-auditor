@@ -1,84 +1,37 @@
-# ==========================================
-# Environments & Packages
-# ==========================================
+# Entornos y paquetes
 .venv/
 venv/
 ENV/
 env/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# uv.lock SÍ se versiona
 
-# NOTE: NO ignorar uv.lock (debe versionarse)
-
-# ==========================================
-# Python Cache & Bytecode
-# ==========================================
+# Caché de Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
 
-# ==========================================
-# Environment Variables & Secrets
-# ==========================================
+# Secretos
 .env
 .env.*
 !.env.example
 
-# ==========================================
-# Testing, Coverage & Cache
-# ==========================================
+# Tests y cobertura
 .pytest_cache/
 .coverage
-.coverage.*
-nosetests.xml
-coverage.xml
 htmlcov/
-.hypothesis/
-.nox/
-.tox/
 .ruff_cache/
 .mypy_cache/
 
-# ==========================================
-# Editor / IDE settings
-# ==========================================
+# Editor / SO
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
-
-# ==========================================
-# OS Specific Files
-# ==========================================
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# ==========================================
-# Project Outputs & Logs
-# ==========================================
+# Salidas generadas
+paginas_github.txt
 *.log
-*.tmp
-*.txt
-!requirements.txt

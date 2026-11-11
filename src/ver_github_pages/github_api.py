@@ -1,76 +1,85 @@
+"""Proveedor CON token: API REST oficial de GitHub (5.000 peticiones/hora)."""
+from typing import List, Optional
+
 import requests
-from typing import List
-from .models import RepoInfo
+
 from . import pages
+from .errors import ErrorAuditoria, LimiteDeTasa, TokenInvalido, UsuarioNoEncontrado
+from .models import RepoInfo
+
+API = "https://api.github.com"
+POR_PAGINA = 100
+MAX_PAGINAS = 100
+PREFIJOS_LICENCIA = ("license", "licence", "copying")
+
 
 class GitHubAPIProvider:
-    def __init__(self, usuario: str, dominio: str, session: requests.Session):
+    def __init__(self, usuario: str, dominio: str, session: requests.Session, token: Optional[str] = None):
         self.usuario = usuario
         self.dominio = dominio
         self.session = session
+        # El token solo se envía a api.github.com, nunca a otros hosts.
+        self._headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+        if token:
+            self._headers["Authorization"] = f"Bearer {token}"
+
+    def _get(self, ruta: str, **kwargs):
+        res = self.session.get(f"{API}{ruta}", headers=self._headers, **kwargs)
+        if res.status_code == 401:
+            raise TokenInvalido("GitHub rechazó el token (401). Comprueba que sea válido y no haya caducado.")
+        if res.status_code in (403, 429):
+            headers = getattr(res, "headers", {}) or {}
+            if res.status_code == 429 or headers.get("X-RateLimit-Remaining") == "0" or "Retry-After" in headers:
+                raise LimiteDeTasa("Se agotó el límite de la API de GitHub. Espera a que se restablezca o usa un token.")
+        return res
 
     def obtener_repositorios(self, on_progress=None) -> List[RepoInfo]:
         repos: List[RepoInfo] = []
-        page = 1
-        
-        while True:
-            url = f"https://api.github.com/users/{self.usuario}/repos?per_page=100&page={page}"
-            res = self.session.get(url)
-            
+        for page in range(1, MAX_PAGINAS + 1):
+            if on_progress:
+                on_progress(page, len(repos))
+            res = self._get(f"/users/{self.usuario}/repos", params={"per_page": POR_PAGINA, "page": page})
+            if res.status_code == 404:
+                raise UsuarioNoEncontrado(f"El usuario '{self.usuario}' no existe.")
             if res.status_code != 200:
-                break
-                
+                raise ErrorAuditoria(f"La API de GitHub respondió {res.status_code} al listar los repositorios.")
+
             data = res.json()
-            if not data or not isinstance(data, list):
+            if not isinstance(data, list):
                 break
-                
             for raw in data:
                 nombre = raw.get("name")
                 if not nombre:
                     continue
-
-                url_pages = pages.construir_url_pages(self.usuario, nombre, self.dominio)
-                tiene_pages = raw.get("has_pages", False)
-
-                repo = RepoInfo(
+                tiene_pages = bool(raw.get("has_pages", False))
+                repos.append(RepoInfo(
                     nombre=nombre,
                     tiene_pages=tiene_pages,
-                    url_pages=url_pages if tiene_pages else None,
+                    url_pages=pages.construir_url_pages(self.usuario, nombre, self.dominio) if tiene_pages else None,
                     tiene_licencia=raw.get("license") is not None,
-                    tiene_descripcion=bool(raw.get("description")),
-                    es_fork=raw.get("fork", False),
-                    esta_archivado=raw.get("archived", False)
-                )
-                repos.append(repo)
-
-            if len(data) < 100:
+                    tiene_descripcion=bool((raw.get("description") or "").strip()),
+                    es_fork=bool(raw.get("fork", False)),
+                    esta_archivado=bool(raw.get("archived", False)),
+                ))
+            if len(data) < POR_PAGINA:
                 break
-            page += 1
-
         return repos
 
+    def _archivos_raiz(self, nombre: str) -> List[str]:
+        res = self._get(f"/repos/{self.usuario}/{nombre}/contents/")
+        if res.status_code != 200:  # 404 = repositorio vacío
+            return []
+        datos = res.json()
+        return [f.get("name", "").lower() for f in datos] if isinstance(datos, list) else []
+
     def enriquecer_repo(self, repo: RepoInfo) -> RepoInfo:
-        # Check releases via Atom feed
-        atom_url = f"https://github.com/{self.usuario}/{repo.nombre}/releases.atom"
-        try:
-            r_atom = self.session.get(atom_url, timeout=5)
-            repo.tiene_releases = (r_atom.status_code == 200) and ("<entry>" in r_atom.text)
-        except Exception:
-            repo.tiene_releases = False
+        # Releases vía feed Atom: no consume cuota de la API.
+        atom = self.session.get(f"https://github.com/{self.usuario}/{repo.nombre}/releases.atom")
+        repo.tiene_releases = atom.status_code == 200 and "<entry>" in atom.text
 
-        # Check README & .gitignore via raw content
-        try:
-            raw_readme = f"https://raw.githubusercontent.com/{self.usuario}/{repo.nombre}/HEAD/README.md"
-            r_rm = self.session.head(raw_readme, timeout=3)
-            repo.tiene_readme = (r_rm.status_code == 200)
-        except Exception:
-            repo.tiene_readme = False
-
-        try:
-            raw_gi = f"https://raw.githubusercontent.com/{self.usuario}/{repo.nombre}/HEAD/.gitignore"
-            r_gi = self.session.head(raw_gi, timeout=3)
-            repo.tiene_gitignore = (r_gi.status_code == 200)
-        except Exception:
-            repo.tiene_gitignore = False
-
+        # README, LICENSE y .gitignore con una sola llamada al contenido raíz.
+        archivos = self._archivos_raiz(repo.nombre)
+        repo.tiene_readme = any(n.startswith("readme") for n in archivos)
+        repo.tiene_gitignore = ".gitignore" in archivos
+        repo.tiene_licencia = repo.tiene_licencia or any(n.startswith(PREFIJOS_LICENCIA) for n in archivos)
         return repo

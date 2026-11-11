@@ -1,8 +1,51 @@
+"""Proveedor SIN token: páginas públicas de GitHub (HTML, raw y feeds Atom).
+
+Es un modo de "mejor esfuerzo": depende del marcado público de GitHub, que puede
+cambiar. Para resultados más fiables usa la API con token.
+"""
 import re
+from typing import Any, Dict, List
+
 import requests
-from typing import List
-from .models import RepoInfo
+
 from . import pages
+from .errors import ErrorAuditoria, LimiteDeTasa, UsuarioNoEncontrado
+from .models import RepoInfo
+
+URL = "https://github.com"
+RAW = "https://raw.githubusercontent.com"
+MAX_PAGINAS = 100
+CANDIDATOS_README = ("README.md", "README", "README.rst", "README.txt", "readme.md")
+CANDIDATOS_LICENCIA = ("LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING")
+
+
+def parsear_listado(html: str, usuario: str) -> List[Dict[str, Any]]:
+    """Extrae los repos de una página del perfil con descripción/fork/archivado.
+
+    Si no se reconoce el marcado por repositorio, devuelve solo los nombres con
+    los metadatos a ``None`` (desconocidos).
+    """
+    patron = re.compile(
+        r'href="/' + re.escape(usuario) + r'/([^"/?#]+)"[^>]*itemprop="name codeRepository"',
+        re.IGNORECASE,
+    )
+    repos: List[Dict[str, Any]] = []
+    for bloque in re.split(r'<li\b[^>]*itemprop="owns"', html)[1:]:
+        m = patron.search(bloque)
+        if m:
+            repos.append({
+                "nombre": m.group(1),
+                "descripcion": 'itemprop="description"' in bloque,
+                "fork": "Forked from" in bloque,
+                "archivado": re.search(r">\s*Archived\s*<", bloque) is not None,
+            })
+    if repos:
+        return repos
+    return [
+        {"nombre": n, "descripcion": None, "fork": None, "archivado": None}
+        for n in dict.fromkeys(patron.findall(html))
+    ]
+
 
 class GitHubWebProvider:
     def __init__(self, usuario: str, dominio: str, session: requests.Session):
@@ -11,65 +54,49 @@ class GitHubWebProvider:
         self.session = session
 
     def obtener_repositorios(self, on_progress=None) -> List[RepoInfo]:
-        nombres = []
-        page = 1
-        headers = {"Accept": "text/html"}
-
-        while True:
+        vistos: Dict[str, Dict[str, Any]] = {}
+        for page in range(1, MAX_PAGINAS + 1):
             if on_progress:
-                on_progress(page, len(nombres))
-
-            url = f"https://github.com/{self.usuario}?page={page}&tab=repositories"
-            res = self.session.get(url, headers=headers)
-            
+                on_progress(page, len(vistos))
+            res = self.session.get(f"{URL}/{self.usuario}", params={"page": page, "tab": "repositories"})
+            if res.status_code == 404 and page == 1:
+                raise UsuarioNoEncontrado(f"El usuario '{self.usuario}' no existe.")
+            if res.status_code == 429:
+                raise LimiteDeTasa("GitHub limitó las peticiones (429). Prueba más tarde o usa un token (-k).")
             if res.status_code != 200:
+                if page == 1:
+                    raise ErrorAuditoria(f"GitHub respondió {res.status_code} al listar los repositorios.")
                 break
+            nuevos = [x for x in parsear_listado(res.text, self.usuario) if x["nombre"] not in vistos]
+            if not nuevos:
+                break
+            for x in nuevos:
+                vistos[x["nombre"]] = x
 
-            bloques = re.findall(
-                r'href="/' + re.escape(self.usuario) + r'/([^"/]+)"\s+itemprop="name codeRepository"',
-                res.text
+        return [
+            RepoInfo(
+                nombre=x["nombre"],
+                tiene_descripcion=x["descripcion"],
+                es_fork=x["fork"],
+                esta_archivado=x["archivado"],
             )
-            if not bloques:
-                break
+            for x in vistos.values()
+        ]
 
-            for nombre in bloques:
-                if nombre not in nombres:
-                    nombres.append(nombre)
-            page += 1
-
-        repos = []
-        for nombre in nombres:
-            url_pages = pages.construir_url_pages(self.usuario, nombre, self.dominio)
-            tiene_pages = pages.comprobar_pages(self.session, url_pages)
-            repos.append(RepoInfo(
-                nombre=nombre,
-                tiene_pages=tiene_pages,
-                url_pages=url_pages if tiene_pages else None
-            ))
-        return repos
+    def _existe(self, url: str) -> bool:
+        return self.session.head(url, allow_redirects=True).status_code == 200
 
     def enriquecer_repo(self, repo: RepoInfo) -> RepoInfo:
-        # Releases
-        atom_url = f"https://github.com/{self.usuario}/{repo.nombre}/releases.atom"
-        try:
-            res_atom = self.session.get(atom_url, timeout=5)
-            repo.tiene_releases = (res_atom.status_code == 200) and ("<entry>" in res_atom.text)
-        except Exception:
-            repo.tiene_releases = False
+        atom = self.session.get(f"{URL}/{self.usuario}/{repo.nombre}/releases.atom")
+        repo.tiene_releases = atom.status_code == 200 and "<entry>" in atom.text
 
-        # HTML Inspect
-        repo_url = f"https://github.com/{self.usuario}/{repo.nombre}"
-        try:
-            res_repo = self.session.get(repo_url, timeout=5)
-            if res_repo.status_code == 200:
-                html = res_repo.text
-                repo.tiene_readme = ('id="readme"' in html or 'README.md' in html)
-                repo.tiene_licencia = ('LICENSE' in html or 'License' in html)
-                repo.tiene_gitignore = ('.gitignore' in html)
-                repo.tiene_descripcion = ('No description, website, or topics provided.' not in html)
-                repo.es_fork = ('forked from' in html)
-                repo.esta_archivado = ('This repository has been archived' in html)
-        except Exception:
-            pass
+        raw = f"{RAW}/{self.usuario}/{repo.nombre}/HEAD/"
+        repo.tiene_readme = any(self._existe(raw + f) for f in CANDIDATOS_README)
+        repo.tiene_licencia = any(self._existe(raw + f) for f in CANDIDATOS_LICENCIA)
+        repo.tiene_gitignore = self._existe(raw + ".gitignore")
 
+        # La comprobación de Pages se hace aquí (en paralelo), no al listar.
+        url = pages.construir_url_pages(self.usuario, repo.nombre, self.dominio)
+        repo.tiene_pages = pages.comprobar_pages(self.session, url)
+        repo.url_pages = url if repo.tiene_pages else None
         return repo

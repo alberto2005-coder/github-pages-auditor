@@ -1,15 +1,18 @@
 [project]
 name = "ver-github-pages"
-version = "1.0.0"
+version = "1.1.0"
 description = "High-performance CLI auditor for GitHub repositories, Pages, and releases (API & scraping support)."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "Alberto Ortiz", email = "albertoortixsanchez@gmail.com" }
 ]
+maintainers = [
+    { name = "Alberto Ortiz" }
+]
 keywords = ["github", "github-pages", "auditor", "cli", "scraping", "automation"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
@@ -23,9 +26,8 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "pytest>=9.2.0",
-    "python-dotenv>=1.2.4",
-    "requests>=2.34.2",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
     "rich>=15.0.0",
 ]
 
@@ -33,6 +35,8 @@ dependencies = [
 Homepage = "https://github.com/alberto2005-coder/ver-github-pages"
 Repository = "https://github.com/alberto2005-coder/ver-github-pages"
 Issues = "https://github.com/alberto2005-coder/ver-github-pages/issues"
+Author = "https://github.com/alberto2005-coder/"
+Website = "https://albertoortiz.is-a.dev/"
 
 [project.scripts]
 ver-github-pages = "ver_github_pages.main:main"
