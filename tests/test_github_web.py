@@ -89,3 +89,16 @@ def test_el_modo_web_no_envia_ninguna_credencial(sesion):
     s = sesion(handler_repo({"README.md"}))
     GitHubWebProvider("ana", "https://a.dev", s).enriquecer_repo(RepoInfo("x"))
     assert all("Authorization" not in (k.get("headers") or {}) for _, _, k in s.llamadas)
+
+
+def test_sin_dominio_se_descubre_el_dominio_personalizado(sesion):
+    """Con el dominio por defecto (github.io), una redirección al dominio propio cuenta como Pages."""
+    from conftest import FakeResponse as R
+
+    def h(m, u, k):
+        if u.startswith("https://ana.github.io"):
+            return R(200, url="https://ana.dev/juego/")
+        return R(404)
+
+    r = GitHubWebProvider("ana", "https://ana.github.io", sesion(h)).enriquecer_repo(RepoInfo("juego"))
+    assert r.tiene_pages and r.url_pages == "https://ana.dev/juego/"

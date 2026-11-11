@@ -1,3 +1,4 @@
+import os
 import sys
 
 from rich.console import Console
@@ -14,6 +15,11 @@ def main(args=None) -> int:
     config = parse_args(args)  # --help, --version y errores de uso salen aquí
     console = Console(no_color=config.sin_color)
     err = Console(stderr=True, no_color=config.sin_color)
+
+    carpeta = os.path.dirname(os.path.abspath(config.archivo_salida))
+    if not os.path.isdir(carpeta):
+        err.print(f"[bold red]❌ La carpeta de salida no existe: '{carpeta}'[/bold red]")
+        return 2
 
     try:
         reporte = ejecutar_auditoria(config, console=console)

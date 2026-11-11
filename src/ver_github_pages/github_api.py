@@ -82,4 +82,16 @@ class GitHubAPIProvider:
         repo.tiene_readme = any(n.startswith("readme") for n in archivos)
         repo.tiene_gitignore = ".gitignore" in archivos
         repo.tiene_licencia = repo.tiene_licencia or any(n.startswith(PREFIJOS_LICENCIA) for n in archivos)
+
+        if repo.tiene_pages:
+            repo.url_pages = self._url_real_pages(repo.nombre) or repo.url_pages
         return repo
+
+    def _url_real_pages(self, nombre: str) -> Optional[str]:
+        """URL real de las Pages (incluye el dominio personalizado configurado)."""
+        res = self._get(f"/repos/{self.usuario}/{nombre}/pages")
+        if res.status_code != 200:
+            return None
+        datos = res.json()
+        url = datos.get("html_url") if isinstance(datos, dict) else None
+        return url.rstrip("/") if url and pages.es_raiz(self.usuario, nombre) else url

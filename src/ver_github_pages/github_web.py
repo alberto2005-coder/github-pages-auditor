@@ -97,6 +97,6 @@ class GitHubWebProvider:
 
         # La comprobación de Pages se hace aquí (en paralelo), no al listar.
         url = pages.construir_url_pages(self.usuario, repo.nombre, self.dominio)
-        repo.tiene_pages = pages.comprobar_pages(self.session, url)
-        repo.url_pages = url if repo.tiene_pages else None
+        repo.url_pages = pages.resolver_pages(self.session, url)
+        repo.tiene_pages = repo.url_pages is not None
         return repo

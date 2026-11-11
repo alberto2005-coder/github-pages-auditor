@@ -9,7 +9,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). /
 - `--version/-V`, `--timeout`, `--no-env`; `python -m ver_github_pages`. / New flags and module entry point.
 - Códigos de salida documentados (0, 1, 2, 130). / Documented exit codes.
 - Sección de informe «Repositorios no analizados» para fallos de red por repo. / Per-repo failure section.
-- Suite de tests ampliada (65 tests) y CI en Linux/macOS/Windows con Python 3.10 y 3.13. / Larger test suite and CI matrix.
+- Suite de tests ampliada (73 tests) y CI en Linux/macOS/Windows con Python 3.10 y 3.13. / Larger test suite and CI matrix.
 - `CHANGELOG.md` y `requirements-dev.txt`.
 
 ### Corregido / Fixed
@@ -26,6 +26,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). /
 - `.env.example` con valores vacíos (los marcadores de posición provocaban fallos silenciosos). / Blank template.
 - `pytest` movido de dependencias de ejecución al grupo `dev`. / pytest is a dev-only dependency.
 - No se escribe informe cuando no hay repositorios. / No report for empty results.
+- Sin `-w`, las Pages con dominio personalizado se detectaban como inexistentes (GitHub redirige desde `github.io`); ahora se sigue la redirección y se muestra el dominio real. Con API se usa la `html_url` real. / Custom-domain Pages are detected without `-w`.
+- La carpeta de salida se valida antes de auditar (antes fallaba al final, tras todo el análisis). / Output folder validated up front.
+- Aviso de `uv` por el classifier de licencia obsoleto: ahora `license = "MIT"` (SPDX). / SPDX license expression.
 
 ## [1.0.0]
 - Primera versión estable: CLI con parámetros, API opcional, scraping de respaldo, tests y README bilingüe. / First stable release.

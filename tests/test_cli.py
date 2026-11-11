@@ -89,3 +89,11 @@ def test_ctrl_c_da_130(monkeypatch):
 
     monkeypatch.setattr(cli, "ejecutar_auditoria", interrumpe)
     assert cli.main(["-u", "x"]) == 130
+
+
+def test_carpeta_de_salida_inexistente_falla_antes_de_auditar(monkeypatch, tmp_path, capsys):
+    llamadas = []
+    monkeypatch.setattr(cli, "ejecutar_auditoria", lambda c, console=None: llamadas.append(1))
+    assert cli.main(["-u", "x", "-o", str(tmp_path / "no_existe" / "o.txt")]) == 2
+    assert llamadas == []  # no se pierde tiempo auditando
+    assert "carpeta de salida" in capsys.readouterr().err

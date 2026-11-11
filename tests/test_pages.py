@@ -36,3 +36,24 @@ def test_comprobar_pages_error_de_red(sesion):
         raise requests.ConnectionError("sin red")
 
     assert not comprobar_pages(sesion(boom), "https://a.dev/x/")
+
+
+from ver_github_pages.pages import resolver_pages
+
+
+def test_resolver_redireccion_de_github_io_a_dominio_personalizado(sesion, Resp):
+    s = sesion(lambda m, u, k: Resp(200, url="https://ana.dev/juego/"))
+    assert resolver_pages(s, "https://ana.github.io/juego/") == "https://ana.dev/juego/"
+
+
+def test_resolver_misma_url_se_conserva(sesion, Resp):
+    assert resolver_pages(sesion(lambda m, u, k: Resp(200)), "https://ana.dev/x/") == "https://ana.dev/x/"
+
+
+def test_resolver_redireccion_de_dominio_ajeno_se_descarta(sesion, Resp):
+    s = sesion(lambda m, u, k: Resp(200, url="https://parking.example/"))
+    assert resolver_pages(s, "https://ana.dev/x/") is None
+
+
+def test_resolver_404(sesion, Resp):
+    assert resolver_pages(sesion(lambda m, u, k: Resp(404)), "https://ana.github.io/x/") is None

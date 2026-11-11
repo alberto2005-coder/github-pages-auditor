@@ -1,3 +1,4 @@
+from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -18,15 +19,33 @@ def construir_url_pages(usuario: str, nombre_repo: str, dominio_base: str) -> st
     return f"{dominio_base}/{nombre_repo}/"
 
 
-def comprobar_pages(session: requests.Session, url: str) -> bool:
-    """True si la URL responde 200 sin acabar redirigida a otro dominio."""
+def resolver_pages(session: requests.Session, url: str) -> Optional[str]:
+    """Devuelve la URL efectiva de la página si existe, o ``None``.
+
+    - Respuesta 200 en el mismo dominio: la URL pedida.
+    - Redirección desde ``*.github.io`` a otro dominio con 200: es el dominio
+      personalizado que GitHub tiene configurado en esas Pages, y se devuelve
+      la URL final (así se descubre el dominio real sin indicarlo con -w).
+    - Cualquier otra redirección a otro dominio se descarta (p. ej. parking).
+    """
     try:
         response = session.get(url, allow_redirects=True, stream=True)
     except requests.RequestException:
-        return False
+        return None
     try:
+        if response.status_code != 200:
+            return None
         final = getattr(response, "url", None) or url
-        mismo_host = urlparse(final).netloc.lower() == urlparse(url).netloc.lower()
-        return response.status_code == 200 and mismo_host
+        host_pedido = urlparse(url).netloc.lower()
+        host_final = urlparse(final).netloc.lower()
+        if host_final == host_pedido:
+            return url
+        if host_pedido.endswith(".github.io"):
+            return final
+        return None
     finally:
         response.close()
+
+
+def comprobar_pages(session: requests.Session, url: str) -> bool:
+    return resolver_pages(session, url) is not None

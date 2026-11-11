@@ -83,3 +83,29 @@ def test_repo_vacio(sesion):
     p, _ = proveedor(sesion, handler_enriquecer(None, atom=""))
     r = p.enriquecer_repo(RepoInfo("x"))
     assert not (r.tiene_readme or r.tiene_gitignore or r.tiene_licencia)
+
+
+def test_url_real_de_pages_con_dominio_personalizado(sesion):
+    from conftest import FakeResponse as R
+
+    def h(m, u, k):
+        if u.endswith("/pages"):
+            return R(200, json_data={"html_url": "https://ana.dev/juego/"})
+        return handler_enriquecer(["README.md"])(m, u, k)
+
+    p, _ = proveedor(sesion, h, dominio="https://ana.github.io")
+    r = p.enriquecer_repo(RepoInfo("juego", tiene_pages=True, url_pages="https://ana.github.io/juego/"))
+    assert r.url_pages == "https://ana.dev/juego/"
+
+
+def test_si_falla_la_consulta_de_pages_se_conserva_la_url_calculada(sesion):
+    from conftest import FakeResponse as R
+
+    def h(m, u, k):
+        if u.endswith("/pages"):
+            return R(404)
+        return handler_enriquecer([])(m, u, k)
+
+    p, _ = proveedor(sesion, h)
+    r = p.enriquecer_repo(RepoInfo("juego", tiene_pages=True, url_pages="https://ana.dev/juego/"))
+    assert r.url_pages == "https://ana.dev/juego/"

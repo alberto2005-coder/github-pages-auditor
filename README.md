@@ -53,6 +53,8 @@ Se controla **solo con parámetros de consola**: no necesita archivo `.env`. El 
 
 El token **solo se envía a `api.github.com`**.
 
+**URL de las Pages:** con API se usa la URL real que GitHub tiene configurada (incluido tu dominio personalizado). Sin API, si no indicas `-w`, se prueba `https://<usuario>.github.io/...` y, si GitHub redirige a tu dominio personalizado, se detecta y se muestra ese dominio. Con `-w` se comprueba directamente ese dominio.
+
 <a name="requisitos-previos-es"></a>
 ## Requisitos previos
 
@@ -247,6 +249,8 @@ It is driven **entirely by command-line parameters**: no `.env` file needed. The
 | Enabled | Automatically when a token is present | When no token is given, or with `--no-api` |
 
 The token is **only ever sent to `api.github.com`**.
+
+**Pages URL:** with the API, the real URL configured on GitHub is used (including your custom domain). Without the API and without `-w`, `https://<user>.github.io/...` is tried and, if GitHub redirects to your custom domain, that domain is detected and shown. With `-w`, that domain is checked directly.
 
 <a name="prerequisites-en"></a>
 ## Prerequisites
