@@ -15,18 +15,35 @@ Se controla **solo con parámetros de consola**: no necesita archivo `.env`. El 
 
 ## Índice
 
-1. [Características](#características-es)
-2. [Modos de funcionamiento: con y sin API](#modos-es)
-3. [Requisitos previos](#requisitos-previos-es)
-4. [Instalación](#instalación-es)
-5. [Uso por línea de comandos](#uso-es)
-6. [Jerarquía de configuración](#configuración-es)
-7. [Códigos de salida](#salida-es)
-8. [Pruebas automatizadas](#pruebas-es)
-9. [Estructura del proyecto](#estructura-es)
-10. [Seguridad](#seguridad-es)
-11. [Autor](#autor-es)
-12. [Licencia](#licencia-es)
+- [GitHub Profile \& Pages Auditor](#github-profile--pages-auditor)
+- [Español](#español)
+  - [Índice](#índice)
+  - [Características](#características)
+  - [Modos de funcionamiento: con y sin API](#modos-de-funcionamiento-con-y-sin-api)
+  - [Requisitos previos](#requisitos-previos)
+  - [Instalación](#instalación)
+  - [Uso por línea de comandos](#uso-por-línea-de-comandos)
+  - [Jerarquía de configuración](#jerarquía-de-configuración)
+  - [Códigos de salida](#códigos-de-salida)
+  - [Pruebas automatizadas](#pruebas-automatizadas)
+  - [Estructura del proyecto](#estructura-del-proyecto)
+  - [Seguridad](#seguridad)
+  - [Autor](#autor)
+  - [Licencia](#licencia)
+- [English](#english)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Operating modes: with and without API](#operating-modes-with-and-without-api)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Command-line usage](#command-line-usage)
+  - [Configuration precedence](#configuration-precedence)
+  - [Exit codes](#exit-codes)
+  - [Automated tests](#automated-tests)
+  - [Project structure](#project-structure)
+  - [Security](#security)
+  - [Author](#author)
+  - [License](#license)
 
 ---
 
@@ -65,7 +82,7 @@ El token **solo se envía a `api.github.com`**.
 ## Instalación
 
 ```bash
-git clone https://github.com/alberto2005-coder/ver-github-pages.git
+git clone https://github.com/alberto2005-coder/github-pages-auditor.git
 cd ver-github-pages
 ```
 
@@ -262,7 +279,7 @@ The token is **only ever sent to `api.github.com`**.
 ## Installation
 
 ```bash
-git clone https://github.com/alberto2005-coder/ver-github-pages.git
+git clone https://github.com/alberto2005-coder/github-pages-auditor.git
 cd ver-github-pages
 ```
 
