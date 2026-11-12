@@ -69,9 +69,14 @@ El token **solo se envía a `api.github.com`**.
   ```bash
   uvx github-pages-auditor -u tu_usuario
   ```
-- **Instalarlo como comando:** `uv tool install github-pages-auditor` o `pip install github-pages-auditor`.
+- **Instalarlo globalmente como comando:**
+  ```bash
+  uv tool install github-pages-auditor
+  # o mediante pip:
+  pip install github-pages-auditor
+  ```
 
-El comando antiguo `ver-github-pages` sigue funcionando como alias.
+El comando antiguo `ver-github-pages` sigue funcionando como alias de compatibilidad.
 
 Para desarrollar desde el código fuente:
 
@@ -96,22 +101,22 @@ cd github-pages-auditor
 github-pages-auditor -u USUARIO [-w DOMINIO] [-k TOKEN] [-o ARCHIVO] [opciones]
 ```
 
-**Ejemplos**
+**Ejemplos** *(si ejecutas desde el repositorio sin instalar globalmente, antepón `uv run`)*
 
 ```bash
 # 1. Básico, sin token ni .env (modo web)
-uv run github-pages-auditor -u alberto2005-coder
+github-pages-auditor -u alberto2005-coder
 
 # 2. Con dominio personalizado y token (modo API)
-uv run github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_tu_token
+github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_tu_token
 
 # 3. Forzar modo web aunque haya token y cambiar el archivo de salida
-uv run github-pages-auditor -u alberto2005-coder -k ghp_tu_token --no-api -o mi_reporte.txt
+github-pages-auditor -u alberto2005-coder -k ghp_tu_token --no-api -o mi_reporte.txt
 
 # 4. Token por variable de entorno (más seguro: no queda en el historial del shell)
-GITHUB_TOKEN=ghp_tu_token uv run github-pages-auditor -u alberto2005-coder
+GITHUB_TOKEN=ghp_tu_token github-pages-auditor -u alberto2005-coder
 
-# 5. También funciona como módulo
+# 5. También funciona como módulo de Python (útil si Scripts no está en el PATH)
 python -m github_pages_auditor -u alberto2005-coder
 ```
 
@@ -311,9 +316,14 @@ The token is **only ever sent to `api.github.com`**.
   ```bash
   uvx github-pages-auditor -u your_user
   ```
-- **Install it as a command:** `uv tool install github-pages-auditor` or `pip install github-pages-auditor`.
+- **Install it globally as a command:**
+  ```bash
+  uv tool install github-pages-auditor
+  # or via pip:
+  pip install github-pages-auditor
+  ```
 
-The old `ver-github-pages` command keeps working as an alias.
+The old `ver-github-pages` command keeps working as a compatibility alias.
 
 To work from source:
 
@@ -338,22 +348,22 @@ cd github-pages-auditor
 github-pages-auditor -u USER [-w DOMAIN] [-k TOKEN] [-o FILE] [options]
 ```
 
-**Examples**
+**Examples** *(if running from source without global installation, prefix with `uv run`)*
 
 ```bash
 # 1. Basic, no token and no .env (web mode)
-uv run github-pages-auditor -u alberto2005-coder
+github-pages-auditor -u alberto2005-coder
 
 # 2. Custom domain and token (API mode)
-uv run github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_your_token
+github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_your_token
 
 # 3. Force web mode even with a token, and change the output file
-uv run github-pages-auditor -u alberto2005-coder -k ghp_your_token --no-api -o my_report.txt
+github-pages-auditor -u alberto2005-coder -k ghp_your_token --no-api -o my_report.txt
 
 # 4. Token from an environment variable (safer: not stored in shell history)
-GITHUB_TOKEN=ghp_your_token uv run github-pages-auditor -u alberto2005-coder
+GITHUB_TOKEN=ghp_your_token github-pages-auditor -u alberto2005-coder
 
-# 5. Also works as a module
+# 5. Also works as a Python module (useful if Scripts is not on PATH)
 python -m github_pages_auditor -u alberto2005-coder
 ```
 
@@ -465,7 +475,7 @@ github-pages-auditor/
 │   ├── models.py                # Data structures
 │   ├── errors.py                # Custom exceptions
 │   └── report.py                # Console (Rich) and .txt report
-└── tests/                       # pytest suite
+└── tests/                       # Suite de pytest
 ```
 
 <a name="security-en"></a>

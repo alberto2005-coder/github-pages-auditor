@@ -8,7 +8,7 @@ Los comandos están pensados para **PowerShell** en la carpeta del proyecto. Los
 | --- | --- |
 | Fecha | 2026-11-12 |
 | Versión probada | 1.2.0 |
-| Sistema / Python | Windows, Python 3.13 |
+| Sistema / Python | Windows, Python 3.13 / 3.14 |
 | Probado por | Alberto |
 
 Para los comandos con token, define antes (no lo pegues en el historial):
@@ -421,11 +421,11 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   Esperado: instala 11 paquetes y los ejecutables `github-pages-auditor` y `ver-github-pages`.
   **Resultado:** OK, 1.2.0 con créditos; desinstalado con `uv tool uninstall github-pages-auditor`.
 
-- [ ] **11.5 Instalación con `pip` en un entorno limpio**
+- [x] **11.5 Instalación con `pip` en un entorno limpio**
   ```powershell
   python -m venv prueba-venv; .\prueba-venv\Scripts\pip install github-pages-auditor; .\prueba-venv\Scripts\github-pages-auditor -V
   ```
-  **Resultado:**
+  **Resultado:** OK: `pip install github-pages-auditor` descarga e instala `github_pages_auditor-1.2.0-py3-none-any.whl` y sus dependencias (`rich`, `requests`, `python-dotenv`) en Python 3.14, creando los ejecutables `github-pages-auditor.exe` y `ver-github-pages.exe`.
 
 - [ ] **11.6 Página del proyecto en PyPI**
   Esperado: el README se ve bien, los enlaces funcionan y las URLs del proyecto apuntan a `github-pages-auditor`.
@@ -477,7 +477,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 | 8. Filtros | 0 | 0 | 0/2 hechas; el resto, opcional/pendiente |
 | 9. Configuración / `.env` | 0 | 0 | 0/5 hechas; el resto, opcional/pendiente |
 | 10. Robustez | 0 | 0 | 0/5 hechas; el resto, opcional/pendiente |
-| 11. PyPI | 4 | 0 | 4/7 hechas; el resto, opcional/pendiente |
+| 11. PyPI | 5 | 0 | 5/7 hechas; el resto, opcional/pendiente |
 | 12. CI | 0 | 0 | 0/2 hechas; el resto, opcional/pendiente |
 | 13. Documentación | 0 | 0 | 0/3 hechas; el resto, opcional/pendiente |
 
