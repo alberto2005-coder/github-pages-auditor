@@ -6,9 +6,9 @@ Los comandos están pensados para **PowerShell** en la carpeta del proyecto. Los
 
 | Dato | Valor |
 | --- | --- |
-| Fecha | |
+| Fecha | 2026-11-12 |
 | Versión probada | 1.2.0 |
-| Sistema / Python | |
+| Sistema / Python | Windows, Python 3.13 |
 | Probado por | Alberto |
 
 Para los comandos con token, define antes (no lo pegues en el historial):
@@ -120,16 +120,16 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   ```
   **Resultado:** OK: mismas cifras que el modo web
 
-- [ ] **3.3 URLs reales de Pages** (⚠️ en la v1.2.0 del 12-nov salían `http://` en proyectos; arreglado ahora → repetir y exigir `https://`)
+- [x] **3.3 URLs reales de Pages** (⚠️ en la v1.2.0 del 12-nov salían `http://` en proyectos; arreglado ahora → repetir y exigir `https://`)
   Esperado: las URLs salen con tu dominio personalizado (`html_url` de GitHub), también sin `-w`.
-  **Resultado:**
+  **Resultado:** OK: ningún http:// en api.md
 
-- [ ] **3.4 Forzar modo web con token**
+- [x] **3.4 Forzar modo web con token**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder --no-api
   ```
   Esperado: proveedor "Scraping Web Público".
-  **Resultado:**
+  **Resultado:** OK: mode web con token presente
 
 - [x] **3.5 Token falso**
   ```powershell
@@ -156,12 +156,12 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   ```
   **Resultado:** OK: summary correcto
 
-- [!] **4.2 JSON por stdout (apto para tuberías)** — FALLÓ en v1.2.0 con UnicodeEncodeError (cp1252); corregido, repetir
+- [x] **4.2 JSON por stdout (apto para tuberías)** — FALLÓ en v1.2.0 con UnicodeEncodeError (cp1252); corregido, repetir
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder -f json -o - -q | ConvertFrom-Json | Select-Object -Expand summary
   ```
   Esperado: se imprime el resumen sin errores de parseo (stdout es JSON puro; la interfaz va a stderr).
-  **Resultado:**
+  **Resultado:** OK tras el arreglo: JSON puro por stdout, summary 82/12
 
 - [x] **4.3 Markdown**
   ```powershell
@@ -170,12 +170,12 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   Esperado: `paginas_github.md` con la tabla "Demos en vivo" entre los marcadores, ordenada alfabéticamente, sin forks, con enlace al repo y "Abrir" a la demo. Los textos con `|` no rompen la tabla.
   **Resultado:** OK (en PowerShell usar Get-Content -Encoding utf8 para ver bien los acentos)
 
-- [ ] **4.4 `-q` (silencioso)**
+- [x] **4.4 `-q` (silencioso)**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder -q
   ```
   Esperado: no se ven tablas ni barra de progreso; el archivo se escribe igualmente.
-  **Resultado:**
+  **Resultado:** OK: -q no imprime nada (visto en 5.1/5.3/5.4)
 
 ---
 
@@ -393,25 +393,33 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 ## 11. Publicación en PyPI (tras la release)
 
-- [ ] **11.1 Configurar el publisher** (una sola vez)
+- [x] **11.1 Configurar el publisher** (una sola vez)
   pypi.org → Publishing → pending publisher: proyecto `github-pages-auditor`, owner `alberto2005-coder`, repo `github-pages-auditor`, workflow `publish.yml`, environment `pypi`. Crea el environment `pypi` en GitHub.
-  **Resultado:**
+  **Resultado:** OK: publisher y environment configurados
 
-- [ ] **11.2 Release y workflow**
+- [x] **11.2 Release y workflow**
   Commit, `git tag v1.2.0`, push y crea la Release. Esperado: en Actions pasa "Publish to PyPI" (build + tests + publish).
-  **Resultado:**
+  **Resultado:** OK: release v1.2.0 publicada y paquete disponible en PyPI (12-nov)
 
 - [ ] **11.3 El tag debe coincidir con la versión**
   (Opcional) crea una release con un tag distinto (`v9.9.9`). Esperado: el workflow falla en "Check that the tag matches the package version" y no publica.
   **Resultado:**
 
-- [ ] **11.4 `uvx` sin instalar nada**
+- [x] **11.4 `uvx` sin instalar nada**
   ```powershell
   uvx github-pages-auditor -V
   uvx github-pages-auditor -u alberto2005-coder -f json -o - -q
   ```
   Esperado: versión 1.2.0 con créditos y JSON válido.
-  **Resultado:**
+  **Resultado:** OK: `uvx github-pages-auditor -V` → 1.2.0 con créditos; JSON válido (82 repos, 12 Pages)
+
+- [x] **11.4b Instalación desde GitHub**
+  ```powershell
+  uv tool install git+https://github.com/alberto2005-coder/github-pages-auditor.git@v1.2.0
+  github-pages-auditor -V
+  ```
+  Esperado: instala 11 paquetes y los ejecutables `github-pages-auditor` y `ver-github-pages`.
+  **Resultado:** OK, 1.2.0 con créditos; desinstalado con `uv tool uninstall github-pages-auditor`.
 
 - [ ] **11.5 Instalación con `pip` en un entorno limpio**
   ```powershell
@@ -458,25 +466,25 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 | Bloque | Pasan | Fallan | Notas |
 | --- | :---: | :---: | --- |
-| 0. Preparación | | | |
-| 1. Ayuda y errores de uso | | | |
-| 2. Modo web | | | |
-| 3. Modo API | | | |
-| 4. Formatos | | | |
-| 5. Códigos de salida | | | |
-| 6. Salud de Pages | | | |
-| 7. `--inject` | | | |
-| 8. Filtros | | | |
-| 9. Configuración / `.env` | | | |
-| 10. Robustez | | | |
-| 11. PyPI | | | |
-| 12. CI | | | |
-| 13. Documentación | | | |
+| 0. Preparación | 2 | 0 | 2/2 hechas |
+| 1. Ayuda y errores de uso | 5 | 0 | 5/5 hechas |
+| 2. Modo web | 3 | 0 | 3/4 hechas; el resto, opcional/pendiente |
+| 3. Modo API | 5 | 0 | 5/6 hechas; el resto, opcional/pendiente |
+| 4. Formatos | 4 | 0 | 4/4 hechas |
+| 5. Códigos de salida | 6 | 0 | 6/8 hechas; el resto, opcional/pendiente |
+| 6. Salud de Pages | 0 | 0 | 0/5 hechas; el resto, opcional/pendiente |
+| 7. `--inject` | 5 | 0 | 5/6 hechas; el resto, opcional/pendiente |
+| 8. Filtros | 0 | 0 | 0/2 hechas; el resto, opcional/pendiente |
+| 9. Configuración / `.env` | 0 | 0 | 0/5 hechas; el resto, opcional/pendiente |
+| 10. Robustez | 0 | 0 | 0/5 hechas; el resto, opcional/pendiente |
+| 11. PyPI | 4 | 0 | 4/7 hechas; el resto, opcional/pendiente |
+| 12. CI | 0 | 0 | 0/2 hechas; el resto, opcional/pendiente |
+| 13. Documentación | 0 | 0 | 0/3 hechas; el resto, opcional/pendiente |
 
 **Bugs encontrados** (comando, resultado obtenido, resultado esperado):
 
-1.
-2.
-3.
+1. Pages de proyecto con `http://` en modo API → corregido (prefiere https).
+2. `-f json -o -` con UnicodeEncodeError en Windows (cp1252) → corregido (JSON ASCII por stdout, UTF-8 en el resto).
+3. Nota: un token revocado definido en `$env:GITHUB_TOKEN` hace que el modo por defecto dé 401 (comportamiento correcto).
 
-**¿Listo para publicar la 1.2.0?** [ ] Sí [ ] No — motivo:
+**¿Listo para publicar la 1.2.0?** [x] Sí [ ] No — publicada el 2026-11-12; pruebas imprescindibles superadas.
