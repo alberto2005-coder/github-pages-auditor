@@ -15,35 +15,19 @@ Se controla **solo con parámetros de consola**: no necesita archivo `.env`. El 
 
 ## Índice
 
-- [GitHub Profile \& Pages Auditor](#github-profile--pages-auditor)
-- [Español](#español)
-  - [Índice](#índice)
-  - [Características](#características)
-  - [Modos de funcionamiento: con y sin API](#modos-de-funcionamiento-con-y-sin-api)
-  - [Requisitos previos](#requisitos-previos)
-  - [Instalación](#instalación)
-  - [Uso por línea de comandos](#uso-por-línea-de-comandos)
-  - [Jerarquía de configuración](#jerarquía-de-configuración)
-  - [Códigos de salida](#códigos-de-salida)
-  - [Pruebas automatizadas](#pruebas-automatizadas)
-  - [Estructura del proyecto](#estructura-del-proyecto)
-  - [Seguridad](#seguridad)
-  - [Autor](#autor)
-  - [Licencia](#licencia)
-- [English](#english)
-  - [Table of Contents](#table-of-contents)
-  - [Features](#features)
-  - [Operating modes: with and without API](#operating-modes-with-and-without-api)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Command-line usage](#command-line-usage)
-  - [Configuration precedence](#configuration-precedence)
-  - [Exit codes](#exit-codes)
-  - [Automated tests](#automated-tests)
-  - [Project structure](#project-structure)
-  - [Security](#security)
-  - [Author](#author)
-  - [License](#license)
+1. [Características](#características-es)
+2. [Modos de funcionamiento: con y sin API](#modos-es)
+3. [Requisitos previos](#requisitos-previos-es)
+4. [Instalación](#instalación-es)
+5. [Uso por línea de comandos](#uso-es)
+6. [Jerarquía de configuración](#configuración-es)
+7. [Códigos de salida](#salida-es)
+8. [Formatos de salida e integración en CI](#formatos-es)
+9. [Pruebas automatizadas](#pruebas-es)
+10. [Estructura del proyecto](#estructura-es)
+11. [Seguridad](#seguridad-es)
+12. [Autor](#autor-es)
+13. [Licencia](#licencia-es)
 
 ---
 
@@ -81,9 +65,19 @@ El token **solo se envía a `api.github.com`**.
 <a name="instalación-es"></a>
 ## Instalación
 
+- **Sin instalar nada (recomendado), con [`uv`](https://docs.astral.sh/uv/):**
+  ```bash
+  uvx github-pages-auditor -u tu_usuario
+  ```
+- **Instalarlo como comando:** `uv tool install github-pages-auditor` o `pip install github-pages-auditor`.
+
+El comando antiguo `ver-github-pages` sigue funcionando como alias.
+
+Para desarrollar desde el código fuente:
+
 ```bash
 git clone https://github.com/alberto2005-coder/github-pages-auditor.git
-cd ver-github-pages
+cd github-pages-auditor
 ```
 
 - **Con `uv` (recomendado):**
@@ -99,26 +93,26 @@ cd ver-github-pages
 ## Uso por línea de comandos
 
 ```text
-ver-github-pages -u USUARIO [-w DOMINIO] [-k TOKEN] [-o ARCHIVO] [opciones]
+github-pages-auditor -u USUARIO [-w DOMINIO] [-k TOKEN] [-o ARCHIVO] [opciones]
 ```
 
 **Ejemplos**
 
 ```bash
 # 1. Básico, sin token ni .env (modo web)
-uv run ver-github-pages -u alberto2005-coder
+uv run github-pages-auditor -u alberto2005-coder
 
 # 2. Con dominio personalizado y token (modo API)
-uv run ver-github-pages -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_tu_token
+uv run github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_tu_token
 
 # 3. Forzar modo web aunque haya token y cambiar el archivo de salida
-uv run ver-github-pages -u alberto2005-coder -k ghp_tu_token --no-api -o mi_reporte.txt
+uv run github-pages-auditor -u alberto2005-coder -k ghp_tu_token --no-api -o mi_reporte.txt
 
 # 4. Token por variable de entorno (más seguro: no queda en el historial del shell)
-GITHUB_TOKEN=ghp_tu_token uv run ver-github-pages -u alberto2005-coder
+GITHUB_TOKEN=ghp_tu_token uv run github-pages-auditor -u alberto2005-coder
 
 # 5. También funciona como módulo
-python -m ver_github_pages -u alberto2005-coder
+python -m github_pages_auditor -u alberto2005-coder
 ```
 
 **Opciones**
@@ -128,7 +122,13 @@ python -m ver_github_pages -u alberto2005-coder
 | `-u` | `--usuario`, `--user` | Usuario de GitHub | **Sí** (o `USUARIO_GITHUB`) |
 | `-w` | `--web`, `--dominio` | Dominio base de las Pages | No (def. `https://<usuario>.github.io`) |
 | `-k` | `--key`, `--token` | Personal Access Token (activa la API) | No |
-| `-o` | `--output` | Archivo del informe | No (def. `paginas_github.txt`) |
+| `-o` | `--output` | Archivo del informe; `-` = salida estándar | No (def. `paginas_github.<formato>`) |
+| `-f` | `--format` | `txt`, `json` o `md` | No (def. `txt`) |
+| `--fail-on` | | Reglas que provocan código de salida 1 (o `any`) | No |
+| `--exclude-forks` | | Ignora los forks | No |
+| `--exclude-archived` | | Ignora los repositorios archivados | No |
+| `--inject` | | Actualiza la tabla de demos dentro de un archivo (README) | No |
+| `-q` | `--quiet` | Sin tablas ni progreso | No |
 | `--workers` | | Hilos en paralelo | No (def. `15`) |
 | `--timeout` | | Timeout por petición, en segundos | No (def. `10`) |
 | `--no-api` | | Fuerza el modo web aunque haya token | No |
@@ -144,7 +144,7 @@ python -m ver_github_pages -u alberto2005-coder
 2. **Variables de entorno**, incluidas las de un archivo `.env` **opcional** en el directorio actual: `USUARIO_GITHUB`, `DOMINIO_WEB`, `GITHUB_TOKEN`, `ARCHIVO_SALIDA`. Un valor vacío se trata como no definido.
 3. **Valores por defecto.**
 
-Hay una plantilla en [`.env.example`](.env.example).
+Hay una plantilla en [`.env.example`](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/.env.example).
 
 <a name="salida-es"></a>
 ## Códigos de salida
@@ -152,9 +152,33 @@ Hay una plantilla en [`.env.example`](.env.example).
 | Código | Significado |
 | :---: | :--- |
 | `0` | Auditoría correcta e informe escrito |
-| `1` | El usuario no tiene repositorios públicos (no se escribe informe) |
+| `1` | Una regla de `--fail-on` encontró hallazgos (el informe sí se escribe) |
 | `2` | Error: parámetros inválidos, usuario inexistente, token rechazado, límite de tasa, red o escritura |
+| `3` | No hay repositorios que analizar (no se escribe informe) |
 | `130` | Cancelado con Ctrl+C |
+
+<a name="formatos-es"></a>
+## Formatos de salida e integración en CI
+
+`-f/--format` elige el formato del informe: `txt` (por defecto), `json` o `md`. Con `-o -` el informe va a la salida estándar y la interfaz a stderr, así que se puede encadenar con otras herramientas:
+
+```bash
+uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
+```
+
+**JSON** (`schema_version: 1`): `tool`, `generated_at`, `user`, `mode` (`api`/`web`), `summary` (contadores), `findings` (una lista por regla, vacía si no hay hallazgos), `fail_on` (reglas pedidas y disparadas) y `repos` (un objeto por repositorio, con `pages.status`, `pages.problems`, `pages.warnings`, `pages.title`, etc.).
+
+**Markdown** (`-f md`): tabla de tus demos en vivo, ordenada y sin forks, entre los marcadores `<!-- github-pages-auditor:start -->` y `<!-- github-pages-auditor:end -->`. Con `--inject README.md` se actualiza **dentro de ese archivo**, entre esos marcadores (si no existen, falla sin tocar nada).
+
+**Reglas de `--fail-on`:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` o `any`. Ejemplo: `--fail-on missing-license,broken-pages`.
+
+**Salud de Pages.** Para cada sitio se comprueba, además del código 200: errores TLS, timeouts, redirecciones a otro dominio o en bucle, página vacía o sin HTML, y lentitud (aviso). Con **token** se sabe qué repos tienen Pages activadas, así que un 404, un build fallido (`errored`) o cualquier fallo cuenta como **Pages rotas**. Sin token no se puede saber si un repo *debería* tener Pages, por lo que un fallo solo significa "no hay Pages".
+
+**Ejemplo de CI (GitHub Actions):**
+
+```yaml
+- run: uvx github-pages-auditor -u ${{ github.repository_owner }} -k ${{ secrets.GITHUB_TOKEN }} -f json -o report.json --fail-on missing-license,broken-pages
+```
 
 <a name="pruebas-es"></a>
 ## Pruebas automatizadas
@@ -171,8 +195,9 @@ Cubren configuración y prioridades, cliente HTTP, ambos proveedores (API y web)
 ## Estructura del proyecto
 
 ```text
-ver-github-pages/
+github-pages-auditor/
 ├── .github/workflows/test.yml   # Integración continua
+├── .github/workflows/publish.yml # Publicación en PyPI
 ├── .env.example                 # Plantilla opcional de variables
 ├── .gitignore
 ├── CHANGELOG.md                 # Historial de versiones
@@ -182,16 +207,19 @@ ver-github-pages/
 ├── requirements.txt             # Dependencias para pip
 ├── requirements-dev.txt         # + pytest
 ├── uv.lock
-├── src/ver_github_pages/
+├── src/github_pages_auditor/
 │   ├── __init__.py              # Versión y créditos del autor
-│   ├── __main__.py              # python -m ver_github_pages
+│   ├── __main__.py              # python -m github_pages_auditor
 │   ├── main.py                  # Punto de entrada de la CLI
 │   ├── config.py                # Argumentos y entorno
 │   ├── audit.py                 # Orquestación en paralelo
 │   ├── github_api.py            # Proveedor: API oficial (con token)
 │   ├── github_web.py            # Proveedor: web pública (sin token)
 │   ├── http.py                  # Sesión con reintentos y timeout
-│   ├── pages.py                 # URLs y comprobación de GitHub Pages
+│   ├── pages.py                 # URLs de GitHub Pages
+│   ├── pages_health.py          # Salud de Pages (404, TLS, redirecciones...)
+│   ├── rules.py                 # Reglas de --fail-on
+│   ├── formatters.py            # Salidas JSON y Markdown
 │   ├── models.py                # Estructuras de datos
 │   ├── errors.py                # Excepciones propias
 │   └── report.py                # Consola (Rich) e informe .txt
@@ -216,7 +244,7 @@ Desarrollado por **Alberto Ortiz**.
 <a name="licencia-es"></a>
 ## Licencia
 
-Distribuido bajo la Licencia MIT. Consulta [LICENSE](LICENSE).
+Distribuido bajo la Licencia MIT. Consulta [LICENSE](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/LICENSE).
 
 ---
 
@@ -236,11 +264,12 @@ It is driven **entirely by command-line parameters**: no `.env` file needed. The
 5. [Command-line usage](#usage-en)
 6. [Configuration precedence](#configuration-en)
 7. [Exit codes](#exit-en)
-8. [Automated tests](#tests-en)
-9. [Project structure](#structure-en)
-10. [Security](#security-en)
-11. [Author](#author-en)
-12. [License](#license-en)
+8. [Output formats and CI integration](#formats-en)
+9. [Automated tests](#tests-en)
+10. [Project structure](#structure-en)
+11. [Security](#security-en)
+12. [Author](#author-en)
+13. [License](#license-en)
 
 ---
 
@@ -278,9 +307,19 @@ The token is **only ever sent to `api.github.com`**.
 <a name="installation-en"></a>
 ## Installation
 
+- **Without installing anything (recommended), with [`uv`](https://docs.astral.sh/uv/):**
+  ```bash
+  uvx github-pages-auditor -u your_user
+  ```
+- **Install it as a command:** `uv tool install github-pages-auditor` or `pip install github-pages-auditor`.
+
+The old `ver-github-pages` command keeps working as an alias.
+
+To work from source:
+
 ```bash
 git clone https://github.com/alberto2005-coder/github-pages-auditor.git
-cd ver-github-pages
+cd github-pages-auditor
 ```
 
 - **Using `uv` (recommended):**
@@ -296,26 +335,26 @@ cd ver-github-pages
 ## Command-line usage
 
 ```text
-ver-github-pages -u USER [-w DOMAIN] [-k TOKEN] [-o FILE] [options]
+github-pages-auditor -u USER [-w DOMAIN] [-k TOKEN] [-o FILE] [options]
 ```
 
 **Examples**
 
 ```bash
 # 1. Basic, no token and no .env (web mode)
-uv run ver-github-pages -u alberto2005-coder
+uv run github-pages-auditor -u alberto2005-coder
 
 # 2. Custom domain and token (API mode)
-uv run ver-github-pages -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_your_token
+uv run github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_your_token
 
 # 3. Force web mode even with a token, and change the output file
-uv run ver-github-pages -u alberto2005-coder -k ghp_your_token --no-api -o my_report.txt
+uv run github-pages-auditor -u alberto2005-coder -k ghp_your_token --no-api -o my_report.txt
 
 # 4. Token from an environment variable (safer: not stored in shell history)
-GITHUB_TOKEN=ghp_your_token uv run ver-github-pages -u alberto2005-coder
+GITHUB_TOKEN=ghp_your_token uv run github-pages-auditor -u alberto2005-coder
 
 # 5. Also works as a module
-python -m ver_github_pages -u alberto2005-coder
+python -m github_pages_auditor -u alberto2005-coder
 ```
 
 **Options**
@@ -325,7 +364,13 @@ python -m ver_github_pages -u alberto2005-coder
 | `-u` | `--usuario`, `--user` | GitHub username | **Yes** (or `USUARIO_GITHUB`) |
 | `-w` | `--web`, `--dominio` | Base domain of the Pages site | No (default `https://<user>.github.io`) |
 | `-k` | `--key`, `--token` | Personal Access Token (enables the API) | No |
-| `-o` | `--output` | Report file | No (default `paginas_github.txt`) |
+| `-o` | `--output` | Report file; `-` = standard output | No (default `paginas_github.<format>`) |
+| `-f` | `--format` | `txt`, `json` or `md` | No (default `txt`) |
+| `--fail-on` | | Rules that cause exit code 1 (or `any`) | No |
+| `--exclude-forks` | | Ignore forks | No |
+| `--exclude-archived` | | Ignore archived repositories | No |
+| `--inject` | | Update the demos table inside a file (README) | No |
+| `-q` | `--quiet` | No tables or progress | No |
 | `--workers` | | Parallel threads | No (default `15`) |
 | `--timeout` | | Per-request timeout, in seconds | No (default `10`) |
 | `--no-api` | | Force web mode even with a token | No |
@@ -341,7 +386,7 @@ python -m ver_github_pages -u alberto2005-coder
 2. **Environment variables**, including those from an **optional** `.env` file in the current directory: `USUARIO_GITHUB`, `DOMINIO_WEB`, `GITHUB_TOKEN`, `ARCHIVO_SALIDA`. An empty value counts as unset.
 3. **Built-in defaults.**
 
-A template is provided in [`.env.example`](.env.example).
+A template is provided in [`.env.example`](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/.env.example).
 
 <a name="exit-en"></a>
 ## Exit codes
@@ -349,9 +394,33 @@ A template is provided in [`.env.example`](.env.example).
 | Code | Meaning |
 | :---: | :--- |
 | `0` | Audit succeeded and report written |
-| `1` | The user has no public repositories (no report is written) |
+| `1` | A `--fail-on` rule found issues (the report is still written) |
 | `2` | Error: invalid parameters, unknown user, rejected token, rate limit, network or write failure |
+| `3` | No repositories to analyze (no report is written) |
 | `130` | Cancelled with Ctrl+C |
+
+<a name="formats-en"></a>
+## Output formats and CI integration
+
+`-f/--format` selects the report format: `txt` (default), `json` or `md`. With `-o -` the report goes to standard output and the UI to stderr, so it can be piped:
+
+```bash
+uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
+```
+
+**JSON** (`schema_version: 1`): `tool`, `generated_at`, `user`, `mode` (`api`/`web`), `summary` (counters), `findings` (one list per rule, empty when clean), `fail_on` (requested and triggered rules) and `repos` (one object per repository, with `pages.status`, `pages.problems`, `pages.warnings`, `pages.title`, etc.).
+
+**Markdown** (`-f md`): a sorted table of your live demos, forks excluded, between the `<!-- github-pages-auditor:start -->` and `<!-- github-pages-auditor:end -->` markers. `--inject README.md` updates it **inside that file**, between those markers (if they are missing it fails without touching anything).
+
+**`--fail-on` rules:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` or `any`. Example: `--fail-on missing-license,broken-pages`.
+
+**Pages health.** Besides a 200 status, each site is checked for TLS errors, timeouts, redirects to another domain or loops, empty or non-HTML pages, and slowness (warning). With a **token** the tool knows which repos have Pages enabled, so a 404, a failed build (`errored`) or any failure counts as **broken Pages**. Without a token it cannot know whether a repo *should* have Pages, so a failure just means "no Pages".
+
+**CI example (GitHub Actions):**
+
+```yaml
+- run: uvx github-pages-auditor -u ${{ github.repository_owner }} -k ${{ secrets.GITHUB_TOKEN }} -f json -o report.json --fail-on missing-license,broken-pages
+```
 
 <a name="tests-en"></a>
 ## Automated tests
@@ -368,8 +437,9 @@ They cover configuration and precedence, the HTTP client, both providers (API an
 ## Project structure
 
 ```text
-ver-github-pages/
+github-pages-auditor/
 ├── .github/workflows/test.yml   # Continuous integration
+├── .github/workflows/publish.yml # PyPI publishing
 ├── .env.example                 # Optional variables template
 ├── .gitignore
 ├── CHANGELOG.md                 # Version history
@@ -379,16 +449,19 @@ ver-github-pages/
 ├── requirements.txt             # pip dependencies
 ├── requirements-dev.txt         # + pytest
 ├── uv.lock
-├── src/ver_github_pages/
+├── src/github_pages_auditor/
 │   ├── __init__.py              # Version and author credits
-│   ├── __main__.py              # python -m ver_github_pages
+│   ├── __main__.py              # python -m github_pages_auditor
 │   ├── main.py                  # CLI entry point
 │   ├── config.py                # Arguments and environment
 │   ├── audit.py                 # Parallel orchestration
 │   ├── github_api.py            # Provider: official API (with token)
 │   ├── github_web.py            # Provider: public web (no token)
 │   ├── http.py                  # Session with retries and timeout
-│   ├── pages.py                 # Pages URLs and checks
+│   ├── pages.py                 # GitHub Pages URLs
+│   ├── pages_health.py          # Pages health (404, TLS, redirects...)
+│   ├── rules.py                 # --fail-on rules
+│   ├── formatters.py            # JSON and Markdown output
 │   ├── models.py                # Data structures
 │   ├── errors.py                # Custom exceptions
 │   └── report.py                # Console (Rich) and .txt report
@@ -413,4 +486,4 @@ Developed by **Alberto Ortiz**.
 <a name="license-en"></a>
 ## License
 
-Distributed under the MIT License. See [LICENSE](LICENSE).
+Distributed under the MIT License. See [LICENSE](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/LICENSE).

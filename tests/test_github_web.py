@@ -1,8 +1,8 @@
 import pytest
 
-from ver_github_pages.errors import ErrorAuditoria, LimiteDeTasa, UsuarioNoEncontrado
-from ver_github_pages.github_web import GitHubWebProvider, parsear_listado
-from ver_github_pages.models import RepoInfo
+from github_pages_auditor.errors import ErrorAuditoria, LimiteDeTasa, UsuarioNoEncontrado
+from github_pages_auditor.github_web import GitHubWebProvider, parsear_listado
+from github_pages_auditor.models import RepoInfo
 
 
 def li(nombre, descripcion=False, fork=False, archivado=False):
@@ -17,13 +17,13 @@ def li(nombre, descripcion=False, fork=False, archivado=False):
 
 def test_parsear_listado_extrae_metadatos():
     uno, dos = parsear_listado(li("uno", descripcion=True) + li("dos", fork=True, archivado=True), "ana")
-    assert uno == {"nombre": "uno", "descripcion": True, "fork": False, "archivado": False}
-    assert dos == {"nombre": "dos", "descripcion": False, "fork": True, "archivado": True}
+    assert uno == {"nombre": "uno", "descripcion": True, "fork": False, "archivado": False, "descripcion_texto": "algo"}
+    assert dos == {"nombre": "dos", "descripcion": False, "fork": True, "archivado": True, "descripcion_texto": None}
 
 
 def test_parsear_listado_fallback_deja_metadatos_desconocidos():
     html = '<a href="/ana/solo" itemprop="name codeRepository">solo</a>'
-    assert parsear_listado(html, "ana") == [{"nombre": "solo", "descripcion": None, "fork": None, "archivado": None}]
+    assert parsear_listado(html, "ana") == [{"nombre": "solo", "descripcion": None, "fork": None, "archivado": None, "descripcion_texto": None}]
 
 
 def test_obtener_repositorios_pagina_hasta_que_no_hay_nuevos(sesion, Resp):

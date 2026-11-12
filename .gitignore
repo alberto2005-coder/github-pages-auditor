@@ -32,6 +32,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Salidas generadas
-paginas_github.txt
+# Salidas generadas por la herramienta y por las pruebas manuales
+paginas_github.*
+api.txt
+informe.txt
+prueba-readme.md
 *.log

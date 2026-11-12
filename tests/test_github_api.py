@@ -1,8 +1,8 @@
 import pytest
 
-from ver_github_pages.errors import ErrorAuditoria, LimiteDeTasa, TokenInvalido, UsuarioNoEncontrado
-from ver_github_pages.github_api import API, GitHubAPIProvider
-from ver_github_pages.models import RepoInfo
+from github_pages_auditor.errors import ErrorAuditoria, LimiteDeTasa, TokenInvalido, UsuarioNoEncontrado
+from github_pages_auditor.github_api import API, GitHubAPIProvider
+from github_pages_auditor.models import RepoInfo
 
 
 def proveedor(sesion, handler, dominio="https://ana.dev"):
@@ -91,6 +91,8 @@ def test_url_real_de_pages_con_dominio_personalizado(sesion):
     def h(m, u, k):
         if u.endswith("/pages"):
             return R(200, json_data={"html_url": "https://ana.dev/juego/"})
+        if not u.startswith(API):
+            return R(200, url="https://ana.dev/juego/") if "github.io" in u else R(200)
         return handler_enriquecer(["README.md"])(m, u, k)
 
     p, _ = proveedor(sesion, h, dominio="https://ana.github.io")
@@ -104,8 +106,67 @@ def test_si_falla_la_consulta_de_pages_se_conserva_la_url_calculada(sesion):
     def h(m, u, k):
         if u.endswith("/pages"):
             return R(404)
+        if not u.startswith(API):
+            return R(200)
         return handler_enriquecer([])(m, u, k)
 
     p, _ = proveedor(sesion, h)
     r = p.enriquecer_repo(RepoInfo("juego", tiene_pages=True, url_pages="https://ana.dev/juego/"))
     assert r.url_pages == "https://ana.dev/juego/"
+
+
+def _con_pages(sesion, datos_pages, estado_web=200):
+    from conftest import FakeResponse as R
+
+    def h(m, u, k):
+        if u.endswith("/pages"):
+            return R(200, json_data=datos_pages)
+        if not u.startswith(API):
+            return R(estado_web)
+        return handler_enriquecer(["README.md"])(m, u, k)
+
+    p, _ = proveedor(sesion, h)
+    return p.enriquecer_repo(RepoInfo("juego", tiene_pages=True, url_pages="https://ana.dev/juego/"))
+
+
+def test_pages_viva_con_salud_ok(sesion):
+    r = _con_pages(sesion, {"html_url": "https://ana.dev/juego/", "status": "built", "https_enforced": True})
+    assert r.pages_viva and not r.pages_rota and r.pages_salud.titulo == "Demo"
+
+
+def test_pages_activadas_pero_404_es_rota(sesion):
+    r = _con_pages(sesion, {"html_url": "https://ana.dev/juego/", "status": "built"}, estado_web=404)
+    assert r.pages_rota and r.pages_salud.problemas == ["404"] and not r.pages_viva
+
+
+def test_build_fallido_es_rota_aunque_la_web_responda(sesion):
+    r = _con_pages(sesion, {"html_url": "https://ana.dev/juego/", "status": "errored"})
+    assert r.pages_rota and "build-fallido" in r.pages_salud.problemas
+
+
+def test_avisos_de_https_y_build(sesion):
+    r = _con_pages(sesion, {"html_url": "https://ana.dev/juego/", "status": "building", "https_enforced": False})
+    assert r.pages_viva and r.pages_salud.avisos == ["build-en-curso", "https-no-forzado"]
+
+
+def test_html_url_http_se_promociona_a_https_si_funciona(sesion):
+    r = _con_pages(sesion, {"html_url": "http://ana.dev/juego/", "status": "built", "https_enforced": False})
+    assert r.url_pages.startswith("https://ana.dev/juego") and r.pages_viva
+    assert r.pages_salud.avisos == ["https-no-forzado"]
+
+
+def test_html_url_http_se_mantiene_si_https_falla(sesion):
+    from conftest import FakeResponse as R
+
+    def h(m, u, k):
+        if u.endswith("/pages"):
+            return R(200, json_data={"html_url": "http://ana.dev/juego/", "status": "built", "https_enforced": False})
+        if u.startswith("https://ana.dev"):
+            raise __import__("requests").exceptions.SSLError("boom")
+        if not u.startswith(API):
+            return R(200)
+        return handler_enriquecer(["README.md"])(m, u, k)
+
+    p, _ = proveedor(sesion, h)
+    r = p.enriquecer_repo(RepoInfo("juego", tiene_pages=True, url_pages="https://ana.dev/juego/"))
+    assert r.url_pages.startswith("http://ana.dev/juego") and r.pages_viva

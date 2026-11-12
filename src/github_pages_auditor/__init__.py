@@ -1,7 +1,7 @@
-"""ver-github-pages: auditor CLI de repositorios, GitHub Pages y releases."""
+"""github-pages-auditor: auditor CLI de repositorios, GitHub Pages y releases."""
 
-__version__ = "1.1.0"
-NOMBRE_PROGRAMA = "ver-github-pages"
+__version__ = "1.2.0"
+NOMBRE_PROGRAMA = "github-pages-auditor"
 AUTOR = "Alberto Ortiz"
 URL_GITHUB = "https://github.com/alberto2005-coder/"
 URL_WEB = "https://albertoortiz.is-a.dev/"

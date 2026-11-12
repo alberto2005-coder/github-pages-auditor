@@ -1,7 +1,7 @@
 [project]
-name = "ver-github-pages"
-version = "1.1.0"
-description = "High-performance CLI auditor for GitHub repositories, Pages, and releases (API & scraping support)."
+name = "github-pages-auditor"
+version = "1.2.0"
+description = "Audit every public repo of a GitHub user in one command: Pages health, releases and quality checks. JSON/Markdown output and CI exit codes. Works with or without a token."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -11,7 +11,7 @@ authors = [
 maintainers = [
     { name = "Alberto Ortiz" }
 ]
-keywords = ["github", "github-pages", "auditor", "cli", "scraping", "automation"]
+keywords = ["github", "github-pages", "auditor", "cli", "ci", "json", "repository-health", "portfolio"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
@@ -21,7 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Quality Assurance",
     "Topic :: Utilities",
 ]
 requires-python = ">=3.10"
@@ -32,14 +32,15 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/alberto2005-coder/ver-github-pages"
-Repository = "https://github.com/alberto2005-coder/ver-github-pages"
-Issues = "https://github.com/alberto2005-coder/ver-github-pages/issues"
+Homepage = "https://github.com/alberto2005-coder/github-pages-auditor"
+Repository = "https://github.com/alberto2005-coder/github-pages-auditor"
+Issues = "https://github.com/alberto2005-coder/github-pages-auditor/issues"
 Author = "https://github.com/alberto2005-coder/"
 Website = "https://albertoortiz.is-a.dev/"
 
 [project.scripts]
-ver-github-pages = "ver_github_pages.main:main"
+github-pages-auditor = "github_pages_auditor.main:main"
+ver-github-pages = "github_pages_auditor.main:main"  # alias de compatibilidad (v1.0 / v1.1)
 
 [dependency-groups]
 dev = [

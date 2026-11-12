@@ -1,0 +1,48 @@
+name: Publish to PyPI
+
+# Se publica al crear una Release en GitHub. Usa "Trusted Publishing" (OIDC):
+# no hace falta guardar ningún token de PyPI en los secretos del repositorio.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Check that the tag matches the package version
+        if: github.event_name == 'release'
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          TAG="${{ github.event.release.tag_name }}"
+          test "v$VERSION" = "$TAG" || { echo "Tag $TAG does not match pyproject version $VERSION"; exit 1; }
+
+      - run: uv sync --frozen
+      - run: uv run --frozen pytest
+      - run: uv build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # necesario para Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv publish --trusted-publishing always

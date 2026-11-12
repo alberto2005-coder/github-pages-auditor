@@ -1,12 +1,12 @@
 import requests
 
-from ver_github_pages.http import SesionHttp, crear_sesion_http
+from github_pages_auditor.http import SesionHttp, crear_sesion_http
 
 
 def test_la_sesion_no_lleva_credenciales():
     s = crear_sesion_http()
     assert "Authorization" not in s.headers
-    assert "ver-github-pages" in s.headers["User-Agent"]
+    assert "github-pages-auditor" in s.headers["User-Agent"]
 
 
 def test_timeout_por_defecto_se_aplica(monkeypatch):

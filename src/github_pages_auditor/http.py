@@ -12,7 +12,7 @@ from urllib3.util.retry import Retry
 
 from . import __version__
 
-USER_AGENT = f"Mozilla/5.0 (compatible; ver-github-pages/{__version__}; +https://github.com/alberto2005-coder/ver-github-pages)"
+USER_AGENT = f"Mozilla/5.0 (compatible; github-pages-auditor/{__version__}; +https://github.com/alberto2005-coder/github-pages-auditor)"
 
 
 class SesionHttp(requests.Session):

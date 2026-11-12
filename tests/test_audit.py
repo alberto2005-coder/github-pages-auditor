@@ -4,12 +4,12 @@ import pytest
 import requests
 from rich.console import Console
 
-from ver_github_pages import audit
-from ver_github_pages.config import Config
-from ver_github_pages.errors import ErrorAuditoria, LimiteDeTasa
-from ver_github_pages.github_api import GitHubAPIProvider
-from ver_github_pages.github_web import GitHubWebProvider
-from ver_github_pages.models import RepoInfo
+from github_pages_auditor import audit
+from github_pages_auditor.config import Config
+from github_pages_auditor.errors import ErrorAuditoria, LimiteDeTasa
+from github_pages_auditor.github_api import GitHubAPIProvider
+from github_pages_auditor.github_web import GitHubWebProvider
+from github_pages_auditor.models import RepoInfo
 
 
 def cfg(**kw):
@@ -75,3 +75,27 @@ def test_error_de_red_al_listar_se_convierte_en_error_de_auditoria(monkeypatch):
 
 def test_sin_repos_devuelve_informe_vacio(monkeypatch):
     assert ejecutar(monkeypatch, Falso([])).repos == []
+
+
+def test_filtros_de_forks_y_archivados_se_aplican_antes_de_analizar(monkeypatch):
+    analizados = []
+
+    class P:
+        def obtener_repositorios(self, on_progress=None):
+            return [RepoInfo("propio", es_fork=False, esta_archivado=False),
+                    RepoInfo("fork", es_fork=True), RepoInfo("viejo", esta_archivado=True)]
+
+        def enriquecer_repo(self, repo):
+            analizados.append(repo.nombre)
+            return repo
+
+    monkeypatch.setattr(audit, "crear_proveedor", lambda c, s: (P(), "P"))
+    informe = audit.ejecutar_auditoria(cfg(excluir_forks=True, excluir_archivados=True), session=object(),
+                                       console=Console(quiet=True))
+    assert analizados == ["propio"] and [r.nombre for r in informe.repos] == ["propio"]
+
+
+def test_el_modo_queda_registrado(monkeypatch):
+    monkeypatch.setattr(audit, "crear_proveedor", lambda c, s: (Falso(["a"]), "F"))
+    assert audit.ejecutar_auditoria(cfg(github_token="t"), session=object(), console=Console(quiet=True)).modo == "api"
+    assert audit.ejecutar_auditoria(cfg(), session=object(), console=Console(quiet=True)).modo == "web"

@@ -2,15 +2,17 @@
 import argparse
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 from dotenv import find_dotenv, load_dotenv
 
 from . import NOMBRE_PROGRAMA, __version__, creditos
+from .rules import TODAS, parsear_fail_on
 
-SALIDA_DEFECTO = "paginas_github.txt"
+SALIDA_BASE = "paginas_github"
 WORKERS_DEFECTO = 15
 TIMEOUT_DEFECTO = 10.0
+FORMATOS = ("txt", "json", "md")
 
 
 @dataclass
@@ -18,15 +20,25 @@ class Config:
     usuario: str
     dominio_web: str
     github_token: Optional[str]
-    archivo_salida: str
+    archivo_salida: Optional[str]  # None = no escribir informe; "-" = stdout
     max_workers: int
     forzar_web: bool
     sin_color: bool
     timeout: float = TIMEOUT_DEFECTO
+    formato: str = "txt"
+    fail_on: Tuple[str, ...] = ()
+    excluir_forks: bool = False
+    excluir_archivados: bool = False
+    inject: Optional[str] = None
+    quiet: bool = False
 
     @property
     def usa_api(self) -> bool:
         return bool(self.github_token) and not self.forzar_web
+
+    @property
+    def salida_estandar(self) -> bool:
+        return self.archivo_salida == "-"
 
 
 def normalizar_dominio(dominio: Optional[str], usuario: str) -> str:
@@ -38,6 +50,13 @@ def normalizar_dominio(dominio: Optional[str], usuario: str) -> str:
     return dominio.rstrip("/")
 
 
+def _fail_on(texto: str):
+    try:
+        return parsear_fail_on(texto)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e))
+
+
 def crear_parser() -> argparse.ArgumentParser:
     env = lambda k, d=None: (os.getenv(k) or "").strip() or d  # noqa: E731  (vacío == no definido)
 
@@ -47,7 +66,8 @@ def crear_parser() -> argparse.ArgumentParser:
                     "Funciona solo con parámetros: el archivo .env y el token de la API son opcionales.",
         epilog=(
             "Prioridad de configuración: parámetros > variables de entorno/.env > valores por defecto.\n"
-            "Variables de entorno: USUARIO_GITHUB, DOMINIO_WEB, GITHUB_TOKEN, ARCHIVO_SALIDA.\n\n"
+            "Variables de entorno: USUARIO_GITHUB, DOMINIO_WEB, GITHUB_TOKEN, ARCHIVO_SALIDA.\n"
+            "Códigos de salida: 0 ok, 1 --fail-on disparado, 2 error, 3 sin repositorios, 130 Ctrl+C.\n\n"
             + creditos(sep="\n")
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -59,8 +79,24 @@ def crear_parser() -> argparse.ArgumentParser:
     parser.add_argument("-k", "--key", "--token", dest="github_token", default=env("GITHUB_TOKEN"),
                         help="GitHub Personal Access Token (opcional). Con token se usa la API; sin él, el modo web. "
                              "Más seguro: variable GITHUB_TOKEN (un parámetro queda en el historial del shell).")
-    parser.add_argument("-o", "--output", dest="archivo_salida", default=env("ARCHIVO_SALIDA", SALIDA_DEFECTO),
-                        help=f"Archivo de salida del reporte (por defecto {SALIDA_DEFECTO}).")
+    parser.add_argument("-o", "--output", dest="archivo_salida", default=env("ARCHIVO_SALIDA"),
+                        help=f"Archivo del informe (por defecto {SALIDA_BASE}.<formato>). Usa '-' para escribirlo "
+                             "en la salida estándar (la interfaz pasa a stderr).")
+    parser.add_argument("-f", "--format", dest="formato", choices=FORMATOS, default="txt",
+                        help="Formato del informe: txt (por defecto), json (contrato versionado) o md "
+                             "(tabla de demos en vivo para tu README).")
+    parser.add_argument("--fail-on", dest="fail_on", type=_fail_on, default=(), metavar="REGLAS",
+                        help="Sale con código 1 si hay hallazgos en estas reglas (separadas por comas): "
+                             f"{', '.join(TODAS)}, o 'any'.")
+    parser.add_argument("--exclude-forks", dest="excluir_forks", action="store_true",
+                        help="Ignora los repositorios que son forks.")
+    parser.add_argument("--exclude-archived", dest="excluir_archivados", action="store_true",
+                        help="Ignora los repositorios archivados.")
+    parser.add_argument("--inject", dest="inject", metavar="ARCHIVO",
+                        help="Actualiza la tabla de demos dentro de ARCHIVO (p. ej. README.md), entre los marcadores "
+                             "<!-- github-pages-auditor:start --> y <!-- github-pages-auditor:end -->.")
+    parser.add_argument("-q", "--quiet", dest="quiet", action="store_true",
+                        help="No muestra tablas ni progreso (solo errores).")
     parser.add_argument("--workers", dest="max_workers", type=int, default=WORKERS_DEFECTO,
                         help=f"Número máximo de hilos concurrentes (por defecto {WORKERS_DEFECTO}).")
     parser.add_argument("--timeout", dest="timeout", type=float, default=TIMEOUT_DEFECTO,
@@ -94,13 +130,23 @@ def parse_args(args=None) -> Config:
     if parsed.timeout <= 0:
         parser.error("--timeout debe ser > 0.")
 
+    salida = (parsed.archivo_salida or "").strip() or None
+    if salida is None and not parsed.inject:
+        salida = f"{SALIDA_BASE}.{parsed.formato}"  # con --inject solo se escribe informe si se pide con -o
+
     return Config(
         usuario=usuario,
         dominio_web=normalizar_dominio(parsed.dominio_web, usuario),
         github_token=(parsed.github_token or "").strip() or None,
-        archivo_salida=parsed.archivo_salida,
+        archivo_salida=salida,
         max_workers=parsed.max_workers,
         forzar_web=parsed.forzar_web,
         sin_color=parsed.sin_color,
         timeout=parsed.timeout,
+        formato=parsed.formato,
+        fail_on=tuple(parsed.fail_on),
+        excluir_forks=parsed.excluir_forks,
+        excluir_archivados=parsed.excluir_archivados,
+        inject=parsed.inject,
+        quiet=parsed.quiet,
     )

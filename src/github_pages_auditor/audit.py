@@ -44,7 +44,12 @@ def ejecutar_auditoria(config: Config, session=None, console: Console = None) ->
         except requests.RequestException as e:
             raise ErrorAuditoria(f"Error de red al listar los repositorios: {e}") from e
 
-    informe = AuditReport(usuario=config.usuario, dominio_base=config.dominio_web, proveedor=nombre_proveedor)
+    repos_base = [
+        r for r in repos_base
+        if not (config.excluir_forks and r.es_fork) and not (config.excluir_archivados and r.esta_archivado)
+    ]
+    informe = AuditReport(usuario=config.usuario, dominio_base=config.dominio_web, proveedor=nombre_proveedor,
+                          modo="api" if config.usa_api else "web")
     if not repos_base:
         return informe
 

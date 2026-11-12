@@ -40,6 +40,10 @@ def renderizar_consola(report: AuditReport, sin_color: bool = False, console: Co
     t.add_row("Sin Licencia", str(len(report.sin_licencia)), badge(report.sin_licencia))
     t.add_row("Sin .gitignore", str(len(report.sin_gitignore)), badge(report.sin_gitignore))
     t.add_row("Sin Descripción", str(len(report.sin_descripcion)), badge(report.sin_descripcion))
+    if report.pages_rotas:
+        t.add_row("Pages rotas", str(len(report.pages_rotas)), badge(report.pages_rotas, "rotas"))
+    if report.pages_con_avisos:
+        t.add_row("Pages con avisos", str(len(report.pages_con_avisos)), badge(report.pages_con_avisos, "avisos"))
     t.add_row("Forks", str(len(report.forks)), "[dim]Externos[/dim]")
     t.add_row("Archivados", str(len(report.archivados)), "[dim]Solo lectura[/dim]")
     if report.con_error:
@@ -68,9 +72,15 @@ def generar_txt(report: AuditReport) -> str:
     lineas += _seccion("REPOSITORIOS SIN DESCRIPCIÓN (ABOUT)", [r.nombre for r in report.sin_descripcion])
     lineas += _seccion("REPOSITORIOS QUE SON FORKS", [r.nombre for r in report.forks])
     lineas += _seccion("REPOSITORIOS ARCHIVADOS", [r.nombre for r in report.archivados])
+    if report.pages_rotas:
+        lineas += _seccion("GITHUB PAGES ROTAS", [
+            f"{r.nombre}: {', '.join(r.pages_salud.problemas)}" for r in report.pages_rotas])
+    if report.pages_con_avisos:
+        lineas += _seccion("GITHUB PAGES CON AVISOS", [
+            f"{r.nombre}: {', '.join(r.pages_salud.avisos)}" for r in report.pages_con_avisos])
     if report.con_error:
         lineas += _seccion("REPOSITORIOS NO ANALIZADOS (ERROR DE RED)", [f"{r.nombre}: {r.error}" for r in report.con_error])
-    lineas += ["", "-" * 60, f"Generado con ver-github-pages v{__version__}", creditos(sep="\n")]
+    lineas += ["", "-" * 60, f"Generado con github-pages-auditor v{__version__}", creditos(sep="\n")]
     return "\n".join(lineas) + "\n"
 
 

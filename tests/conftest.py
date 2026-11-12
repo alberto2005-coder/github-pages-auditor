@@ -5,15 +5,21 @@ import pytest
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, text="", json_data=None, headers=None, url=""):
+    PAGINA = "<!doctype html><html><head><title>Demo</title></head><body>hola</body></html>"
+
+    def __init__(self, status_code=200, text=None, json_data=None, headers=None, url="", history=None):
         self.status_code = status_code
-        self.text = text
+        self.text = text if text is not None else (self.PAGINA if status_code == 200 else "")
+        self.history = history or []
         self._json = json_data
         self.headers = headers or {}
         self.url = url
 
     def json(self):
         return self._json
+
+    def iter_content(self, n):
+        yield self.text.encode("utf-8")
 
     def close(self):
         pass
@@ -57,4 +63,4 @@ def entorno_limpio(monkeypatch):
     """Los tests no deben depender del entorno ni de un .env real."""
     for v in ("USUARIO_GITHUB", "DOMINIO_WEB", "GITHUB_TOKEN", "ARCHIVO_SALIDA"):
         monkeypatch.delenv(v, raising=False)
-    monkeypatch.setattr("ver_github_pages.config.load_dotenv", lambda *a, **k: False)
+    monkeypatch.setattr("github_pages_auditor.config.load_dotenv", lambda *a, **k: False)

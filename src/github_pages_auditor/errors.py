@@ -15,3 +15,7 @@ class LimiteDeTasa(ErrorAuditoria):
 
 class TokenInvalido(ErrorAuditoria):
     """GitHub rechazó el token (401)."""
+
+
+class ErrorSalida(ErrorAuditoria):
+    """No se puede generar o escribir la salida pedida (p. ej. --inject sin marcadores)."""

@@ -3,9 +3,9 @@ from typing import List, Optional
 
 import requests
 
-from . import pages
+from . import pages, pages_health
 from .errors import ErrorAuditoria, LimiteDeTasa, TokenInvalido, UsuarioNoEncontrado
-from .models import RepoInfo
+from .models import ESTADO_ROTA, RepoInfo
 
 API = "https://api.github.com"
 POR_PAGINA = 100
@@ -58,6 +58,7 @@ class GitHubAPIProvider:
                     url_pages=pages.construir_url_pages(self.usuario, nombre, self.dominio) if tiene_pages else None,
                     tiene_licencia=raw.get("license") is not None,
                     tiene_descripcion=bool((raw.get("description") or "").strip()),
+                    descripcion=(raw.get("description") or "").strip() or None,
                     es_fork=bool(raw.get("fork", False)),
                     esta_archivado=bool(raw.get("archived", False)),
                 ))
@@ -84,14 +85,38 @@ class GitHubAPIProvider:
         repo.tiene_licencia = repo.tiene_licencia or any(n.startswith(PREFIJOS_LICENCIA) for n in archivos)
 
         if repo.tiene_pages:
-            repo.url_pages = self._url_real_pages(repo.nombre) or repo.url_pages
+            self._comprobar_pages(repo)
         return repo
 
-    def _url_real_pages(self, nombre: str) -> Optional[str]:
-        """URL real de las Pages (incluye el dominio personalizado configurado)."""
+    def _datos_pages(self, nombre: str) -> Optional[dict]:
         res = self._get(f"/repos/{self.usuario}/{nombre}/pages")
         if res.status_code != 200:
             return None
         datos = res.json()
-        url = datos.get("html_url") if isinstance(datos, dict) else None
-        return url.rstrip("/") if url and pages.es_raiz(self.usuario, nombre) else url
+        return datos if isinstance(datos, dict) else None
+
+    def _comprobar_pages(self, repo: RepoInfo) -> None:
+        """Pages activadas según la API: aquí cualquier fallo de la web es una Pages ROTA."""
+        datos = self._datos_pages(repo.nombre) or {}
+        url = datos.get("html_url") or repo.url_pages
+        if url and pages.es_raiz(self.usuario, repo.nombre):
+            url = url.rstrip("/")
+        salud = None
+        if url and url.startswith("http://"):
+            # La API devuelve http:// si HTTPS no está forzado; preferimos https si la web responde bien.
+            https = "https://" + url[len("http://"):]
+            candidata = pages_health.inspeccionar(self.session, https, esperada=True)
+            if not candidata.problemas:
+                salud, url = candidata, https
+        if salud is None:
+            salud = pages_health.inspeccionar(self.session, url, esperada=True)
+        if datos.get("status") == "errored":
+            salud.problemas.append("build-fallido")
+        elif datos.get("status") == "building":
+            salud.avisos.append("build-en-curso")
+        if datos.get("https_enforced") is False:
+            salud.avisos.append("https-no-forzado")
+        if salud.problemas:
+            salud.estado = ESTADO_ROTA
+        repo.pages_salud = salud
+        repo.url_pages = salud.url_final or url

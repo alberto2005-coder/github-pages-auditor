@@ -1,8 +1,8 @@
 from rich.console import Console
 
-from ver_github_pages import URL_GITHUB, URL_WEB, __version__
-from ver_github_pages.models import AuditReport, RepoInfo
-from ver_github_pages.report import exportar_txt, generar_txt, renderizar_consola
+from github_pages_auditor import URL_GITHUB, URL_WEB, __version__
+from github_pages_auditor.models import AuditReport, RepoInfo
+from github_pages_auditor.report import exportar_txt, generar_txt, renderizar_consola
 
 COMPLETO = RepoInfo("bueno", True, "https://a.dev/bueno/", True, True, True, True, True, False, False)
 POBRE = RepoInfo("pobre", tiene_descripcion=False, es_fork=True, esta_archivado=True)
@@ -48,3 +48,11 @@ def test_consola_muestra_tablas():
     renderizar_consola(informe(COMPLETO, POBRE, FALLO), console=c)
     salida = c.export_text()
     assert "GitHub Pages Activas" in salida and "Resumen de Auditoría" in salida and "No analizados" in salida
+
+
+def test_seccion_pages_con_avisos_en_txt():
+    from github_pages_auditor.models import AuditReport, PagesHealth, RepoInfo
+    from github_pages_auditor.report import generar_txt
+    r = RepoInfo("a", tiene_pages=True, url_pages="https://u.dev/a/", pages_salud=PagesHealth(estado="ok", url="https://u.dev/a/", avisos=["https-no-forzado"]))
+    rep = AuditReport("u", "https://u.github.io", "API", [r], "api")
+    assert "GITHUB PAGES CON AVISOS" in generar_txt(rep) and "a: https-no-forzado" in generar_txt(rep)

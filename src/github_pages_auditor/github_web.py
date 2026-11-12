@@ -4,11 +4,13 @@ Es un modo de "mejor esfuerzo": depende del marcado público de GitHub, que pued
 cambiar. Para resultados más fiables usa la API con token.
 """
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import requests
 
-from . import pages
+import html as _html
+
+from . import pages, pages_health
 from .errors import ErrorAuditoria, LimiteDeTasa, UsuarioNoEncontrado
 from .models import RepoInfo
 
@@ -17,6 +19,14 @@ RAW = "https://raw.githubusercontent.com"
 MAX_PAGINAS = 100
 CANDIDATOS_README = ("README.md", "README", "README.rst", "README.txt", "readme.md")
 CANDIDATOS_LICENCIA = ("LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING")
+
+
+def _texto_descripcion(bloque: str) -> Optional[str]:
+    m = re.search(r'itemprop="description"[^>]*>(.*?)</p>', bloque, re.DOTALL)
+    if not m:
+        return None
+    texto = " ".join(_html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).split())
+    return texto or None
 
 
 def parsear_listado(html: str, usuario: str) -> List[Dict[str, Any]]:
@@ -35,6 +45,7 @@ def parsear_listado(html: str, usuario: str) -> List[Dict[str, Any]]:
         if m:
             repos.append({
                 "nombre": m.group(1),
+                "descripcion_texto": _texto_descripcion(bloque),
                 "descripcion": 'itemprop="description"' in bloque,
                 "fork": "Forked from" in bloque,
                 "archivado": re.search(r">\s*Archived\s*<", bloque) is not None,
@@ -42,7 +53,7 @@ def parsear_listado(html: str, usuario: str) -> List[Dict[str, Any]]:
     if repos:
         return repos
     return [
-        {"nombre": n, "descripcion": None, "fork": None, "archivado": None}
+        {"nombre": n, "descripcion": None, "fork": None, "archivado": None, "descripcion_texto": None}
         for n in dict.fromkeys(patron.findall(html))
     ]
 
@@ -77,6 +88,7 @@ class GitHubWebProvider:
             RepoInfo(
                 nombre=x["nombre"],
                 tiene_descripcion=x["descripcion"],
+                descripcion=x.get("descripcion_texto"),
                 es_fork=x["fork"],
                 esta_archivado=x["archivado"],
             )
@@ -97,6 +109,8 @@ class GitHubWebProvider:
 
         # La comprobación de Pages se hace aquí (en paralelo), no al listar.
         url = pages.construir_url_pages(self.usuario, repo.nombre, self.dominio)
-        repo.url_pages = pages.resolver_pages(self.session, url)
-        repo.tiene_pages = repo.url_pages is not None
+        salud = pages_health.inspeccionar(self.session, url, esperada=False)
+        repo.tiene_pages = salud.ok
+        repo.url_pages = salud.url_final if salud.ok else None
+        repo.pages_salud = salud if salud.ok else None
         return repo

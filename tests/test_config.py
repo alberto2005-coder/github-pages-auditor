@@ -1,6 +1,6 @@
 import pytest
 
-from ver_github_pages.config import normalizar_dominio, parse_args
+from github_pages_auditor.config import normalizar_dominio, parse_args
 
 
 def test_usuario_obligatorio():
@@ -58,7 +58,7 @@ def test_no_api_fuerza_web():
 
 def test_no_env_no_carga_dotenv(monkeypatch):
     llamadas = []
-    monkeypatch.setattr("ver_github_pages.config.load_dotenv", lambda *a, **k: llamadas.append(1))
+    monkeypatch.setattr("github_pages_auditor.config.load_dotenv", lambda *a, **k: llamadas.append(1))
     parse_args(["-u", "a", "--no-env"])
     assert llamadas == []
     parse_args(["-u", "a"])
@@ -76,3 +76,27 @@ def test_normalizar_dominio():
     assert normalizar_dominio("http://x.dev", "u") == "http://x.dev"
     assert normalizar_dominio("", "u") == "https://u.github.io"
     assert normalizar_dominio(None, "u") == "https://u.github.io"
+
+
+def test_formato_y_nombre_de_archivo_por_defecto():
+    assert parse_args(["-u", "a"]).archivo_salida == "paginas_github.txt"
+    assert parse_args(["-u", "a", "-f", "json"]).archivo_salida == "paginas_github.json"
+    assert parse_args(["-u", "a", "-f", "md"]).archivo_salida == "paginas_github.md"
+    assert parse_args(["-u", "a", "-f", "json", "-o", "x.json"]).archivo_salida == "x.json"
+
+
+def test_salida_estandar():
+    c = parse_args(["-u", "a", "-o", "-"])
+    assert c.salida_estandar and c.archivo_salida == "-"
+
+
+def test_fail_on_filtros_e_inject():
+    c = parse_args(["-u", "a", "--fail-on", "missing-license,broken-pages", "--exclude-forks",
+                    "--exclude-archived", "--inject", "README.md", "-q"])
+    assert c.fail_on == ("missing-license", "broken-pages")
+    assert c.excluir_forks and c.excluir_archivados and c.quiet
+    assert c.inject == "README.md" and c.archivo_salida is None  # con --inject no hay informe salvo con -o
+
+
+def test_inject_con_o_explicito_tambien_escribe_informe():
+    assert parse_args(["-u", "a", "--inject", "R.md", "-o", "r.txt"]).archivo_salida == "r.txt"

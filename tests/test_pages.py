@@ -1,4 +1,4 @@
-from ver_github_pages.pages import comprobar_pages, construir_url_pages, es_raiz
+from github_pages_auditor.pages import comprobar_pages, construir_url_pages, es_raiz
 
 
 def test_principal():
@@ -38,7 +38,7 @@ def test_comprobar_pages_error_de_red(sesion):
     assert not comprobar_pages(sesion(boom), "https://a.dev/x/")
 
 
-from ver_github_pages.pages import resolver_pages
+from github_pages_auditor.pages import resolver_pages
 
 
 def test_resolver_redireccion_de_github_io_a_dominio_personalizado(sesion, Resp):
