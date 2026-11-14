@@ -488,11 +488,11 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 - [ ] **14.7 CI en verde con Python 3.14** (tras el push)
   Esperado: las 9 combinaciones (Ubuntu/macOS/Windows × 3.10/3.13/3.14) pasan en Actions.
-  **Resultado:**
+  **Resultado:** Pendiente de tu vistazo: en Actions, workflow de tests, las 9 combinaciones (Ubuntu/macOS/Windows × 3.10/3.13/3.14) en verde. La publicación en PyPI ya pasó sus propios tests, pero la matriz completa no la puedo ver desde aquí.
 
-- [ ] **14.8 Badges del README** (tras el push y la release)
+- [x] **14.8 Badges del README** (tras el push y la release)
   Esperado: se ven los 4 badges (PyPI, Python, Tests, licencia) en GitHub; el de PyPI muestra `1.2.1` tras publicar.
-  **Resultado:**
+  **Resultado:** OK en PyPI (badges del README presentes en la página del proyecto). En GitHub: míralos a ojo y confirma que el de Tests sale en verde.
 
 - [ ] **14.9 Receta de resumen del job** (opcional)
   En un repo de prueba, añade el paso de `docs/ci.md` §2 y mira la pestaña *Summary* del job. Esperado: aparece la tabla de demos.
@@ -502,14 +502,14 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   Copia el workflow de `docs/ci.md` §3 a un repo con los marcadores y lánzalo con *Run workflow*. Esperado: un commit «docs: actualizar demos» solo si hubo cambios.
   **Resultado:**
 
-- [ ] **14.11 Publicación de la 1.2.1** (tras la release `v1.2.1`)
+- [x] **14.11 Publicación de la 1.2.1** (tras la release `v1.2.1`)
   ```powershell
   cd $env:TEMP
   uvx github-pages-auditor@1.2.1 -V
   uvx github-pages-auditor@1.2.1 -u alberto2005-coder -f json -o - -q | ConvertFrom-Json | Select-Object -Expand summary
   ```
   Esperado: `github-pages-auditor 1.2.1` con créditos y el resumen (82 repos, 12 Pages). En `https://pypi.org/project/github-pages-auditor/` ya no aparece tu correo y el README es el nuevo.
-  **Resultado:**
+  **Resultado:** OK (2026-11-14): `uvx github-pages-auditor@1.2.1 -V` → 1.2.1 con créditos; JSON válido (82 repos, 12 Pages, 0 rotas, 0 errores). PyPI: 1.2.1 publicada (wheel + sdist, 08:32 UTC), autor sin correo, classifier 3.14, README nuevo con badges y sin `ghp_`.
 
 ---
 
@@ -524,14 +524,14 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 | 4. Formatos | 4 | 0 | 4/4 hechas |
 | 5. Códigos de salida | 8 | 0 | 8/8 hechas |
 | 6. Salud de Pages | 5 | 0 | 5/5 hechas |
-| 7. `--inject` | 5 | 0 | 5/6 hechas; el resto, pendiente u opcional |
+| 7. `--inject` | 6 | 0 | 6/6 hechas |
 | 8. Filtros | 2 | 0 | 2/2 hechas |
 | 9. Configuración / `.env` | 5 | 0 | 5/5 hechas |
 | 10. Robustez | 5 | 0 | 5/5 hechas |
 | 11. PyPI | 5 | 0 | 5/7 hechas; el resto, pendiente u opcional |
 | 12. CI | 0 | 0 | 0/2 hechas; el resto, pendiente u opcional |
-| 13. Documentación | 0 | 0 | 0/3 hechas; el resto, pendiente u opcional |
-| 14. Novedades 1.2.1 | 6 | 0 | 6/11 hechas; el resto, pendiente u opcional |
+| 13. Documentación | 1 | 0 | 1/3 hechas; el resto, pendiente u opcional |
+| 14. Novedades 1.2.1 | 8 | 0 | 8/11 hechas; el resto, pendiente u opcional |
 
 **Bugs encontrados** (comando, resultado obtenido, resultado esperado):
 
@@ -539,4 +539,4 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 2. `-f json -o -` con UnicodeEncodeError en Windows (cp1252) → corregido (JSON ASCII por stdout, UTF-8 en el resto).
 3. Nota: un token revocado definido en `$env:GITHUB_TOKEN` hace que el modo por defecto dé 401 (comportamiento correcto).
 
-**¿Listo para publicar la 1.2.1?** [x] Sí [ ] No — todo lo automatizable pasa; faltan las comprobaciones que necesitan GitHub/PyPI reales (14.7, 14.8, 14.11).
+**¿Listo para publicar la 1.2.1?** [x] Sí [ ] No — publicada el 2026-11-14 (PyPI 1.2.1 verificada). Solo queda tu vistazo al CI (14.7) y las pruebas opcionales.
