@@ -1,12 +1,12 @@
 [project]
 name = "github-pages-auditor"
-version = "1.2.0"
+version = "1.2.1"
 description = "Audit every public repo of a GitHub user in one command: Pages health, releases and quality checks. JSON/Markdown output and CI exit codes. Works with or without a token."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-    { name = "Alberto Ortiz", email = "albertoortixsanchez@gmail.com" }
+    { name = "Alberto Ortiz" }
 ]
 maintainers = [
     { name = "Alberto Ortiz" }
@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Quality Assurance",
     "Topic :: Utilities",
 ]

@@ -1,6 +1,6 @@
 """github-pages-auditor: auditor CLI de repositorios, GitHub Pages y releases."""
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 NOMBRE_PROGRAMA = "github-pages-auditor"
 AUTOR = "Alberto Ortiz"
 URL_GITHUB = "https://github.com/alberto2005-coder/"

@@ -2,6 +2,18 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). / Format based on Keep a Changelog.
 
+## [1.2.1] - 2026-11-13
+
+### Añadido / Added
+- Soporte y pruebas en CI para Python 3.14. / Python 3.14 support and CI.
+- Documentación: contrato del JSON (`docs/json-schema.md`) y recetas de CI (`docs/ci.md`: fallar el job, resumen en `$GITHUB_STEP_SUMMARY`, refresco semanal del README). / JSON contract and CI recipes.
+- Badges (PyPI, Python, tests, licencia) en el README. / README badges.
+- Tests de extremo a extremo (CLI -> auditoría -> API simulada) que automatizan las pruebas manuales de filtros, Pages rotas, robustez y `.env`, y tests de higiene de release (versión, CHANGELOG, `uv.lock`, metadatos). / End-to-end and release-hygiene tests.
+
+### Cambiado / Changed
+- Los ejemplos del README pasan el token por variable de entorno y usan tokens `github_pat_…` (fine-grained). / README examples pass the token via environment variable.
+- Los metadatos del paquete ya no incluyen el correo del autor. / The author email is no longer in the package metadata.
+
 ## [1.2.0] - 2026-11-12
 
 ### Añadido / Added

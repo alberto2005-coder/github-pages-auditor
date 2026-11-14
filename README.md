@@ -1,5 +1,7 @@
 # GitHub Profile & Pages Auditor
 
+[![PyPI](https://img.shields.io/pypi/v/github-pages-auditor)](https://pypi.org/project/github-pages-auditor/) [![Python](https://img.shields.io/pypi/pyversions/github-pages-auditor)](https://pypi.org/project/github-pages-auditor/) [![Tests](https://github.com/alberto2005-coder/github-pages-auditor/actions/workflows/test.yml/badge.svg)](https://github.com/alberto2005-coder/github-pages-auditor/actions/workflows/test.yml) [![License: MIT](https://img.shields.io/pypi/l/github-pages-auditor)](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/LICENSE)
+
 [Español](#español) | [English](#english)
 
 > Desarrollado por / Developed by **[Alberto Ortiz](https://github.com/alberto2005-coder/)** · 🌐 [albertoortiz.is-a.dev](https://albertoortiz.is-a.dev/)
@@ -107,14 +109,15 @@ github-pages-auditor -u USUARIO [-w DOMINIO] [-k TOKEN] [-o ARCHIVO] [opciones]
 # 1. Básico, sin token ni .env (modo web)
 github-pages-auditor -u alberto2005-coder
 
-# 2. Con dominio personalizado y token (modo API)
-github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_tu_token
+# 2. Con dominio personalizado y token por variable de entorno (modo API; recomendado)
+export GITHUB_TOKEN=github_pat_xxx        # PowerShell: $env:GITHUB_TOKEN = "github_pat_xxx"
+github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev
 
-# 3. Forzar modo web aunque haya token y cambiar el archivo de salida
-github-pages-auditor -u alberto2005-coder -k ghp_tu_token --no-api -o mi_reporte.txt
+# 3. Forzar modo web aunque haya token en el entorno y cambiar el archivo de salida
+github-pages-auditor -u alberto2005-coder --no-api -o mi_reporte.txt
 
-# 4. Token por variable de entorno (más seguro: no queda en el historial del shell)
-GITHUB_TOKEN=ghp_tu_token github-pages-auditor -u alberto2005-coder
+# 4. Token como parámetro (funciona, pero queda en el historial del shell)
+github-pages-auditor -u alberto2005-coder -k github_pat_xxx
 
 # 5. También funciona como módulo de Python (útil si Scripts no está en el PATH)
 python -m github_pages_auditor -u alberto2005-coder
@@ -179,6 +182,8 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 
 **Salud de Pages.** Para cada sitio se comprueba, además del código 200: errores TLS, timeouts, redirecciones a otro dominio o en bucle, página vacía o sin HTML, y lentitud (aviso). Con **token** se sabe qué repos tienen Pages activadas, así que un 404, un build fallido (`errored`) o cualquier fallo cuenta como **Pages rotas**. Sin token no se puede saber si un repo *debería* tener Pages, por lo que un fallo solo significa "no hay Pages".
 
+Contrato completo del JSON: [docs/json-schema.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/json-schema.md). Más recetas de CI (resumen del job, refresco semanal del README): [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md).
+
 **Ejemplo de CI (GitHub Actions):**
 
 ```yaml
@@ -194,7 +199,7 @@ Los tests usan una sesión HTTP falsa: no tocan la red ni consumen cuota de GitH
 uv run pytest          # o: pip install -r requirements-dev.txt && pytest
 ```
 
-Cubren configuración y prioridades, cliente HTTP, ambos proveedores (API y web), orquestación en paralelo, informe, CLI, códigos de salida y créditos. La integración continua (GitHub Actions) los ejecuta en Linux, macOS y Windows con Python 3.10 y 3.13.
+Cubren configuración y prioridades, cliente HTTP, ambos proveedores (API y web), orquestación en paralelo, informe, CLI, códigos de salida y créditos. La integración continua (GitHub Actions) los ejecuta en Linux, macOS y Windows con Python 3.10, 3.13 y 3.14.
 
 <a name="estructura-es"></a>
 ## Estructura del proyecto
@@ -354,14 +359,15 @@ github-pages-auditor -u USER [-w DOMAIN] [-k TOKEN] [-o FILE] [options]
 # 1. Basic, no token and no .env (web mode)
 github-pages-auditor -u alberto2005-coder
 
-# 2. Custom domain and token (API mode)
-github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev -k ghp_your_token
+# 2. Custom domain and token from an environment variable (API mode; recommended)
+export GITHUB_TOKEN=github_pat_xxx        # PowerShell: $env:GITHUB_TOKEN = "github_pat_xxx"
+github-pages-auditor -u alberto2005-coder -w https://albertoortiz.is-a.dev
 
-# 3. Force web mode even with a token, and change the output file
-github-pages-auditor -u alberto2005-coder -k ghp_your_token --no-api -o my_report.txt
+# 3. Force web mode even with a token in the environment, and change the output file
+github-pages-auditor -u alberto2005-coder --no-api -o my_report.txt
 
-# 4. Token from an environment variable (safer: not stored in shell history)
-GITHUB_TOKEN=ghp_your_token github-pages-auditor -u alberto2005-coder
+# 4. Token as a parameter (works, but it stays in your shell history)
+github-pages-auditor -u alberto2005-coder -k github_pat_xxx
 
 # 5. Also works as a Python module (useful if Scripts is not on PATH)
 python -m github_pages_auditor -u alberto2005-coder
@@ -426,6 +432,8 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 
 **Pages health.** Besides a 200 status, each site is checked for TLS errors, timeouts, redirects to another domain or loops, empty or non-HTML pages, and slowness (warning). With a **token** the tool knows which repos have Pages enabled, so a 404, a failed build (`errored`) or any failure counts as **broken Pages**. Without a token it cannot know whether a repo *should* have Pages, so a failure just means "no Pages".
 
+Full JSON contract: [docs/json-schema.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/json-schema.md). More CI recipes (job summary, weekly README refresh): [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md).
+
 **CI example (GitHub Actions):**
 
 ```yaml
@@ -441,7 +449,7 @@ Tests use a fake HTTP session: they never touch the network or use GitHub quota.
 uv run pytest          # or: pip install -r requirements-dev.txt && pytest
 ```
 
-They cover configuration and precedence, the HTTP client, both providers (API and web), parallel orchestration, the report, the CLI, exit codes and credits. Continuous integration (GitHub Actions) runs them on Linux, macOS and Windows with Python 3.10 and 3.13.
+They cover configuration and precedence, the HTTP client, both providers (API and web), parallel orchestration, the report, the CLI, exit codes and credits. Continuous integration (GitHub Actions) runs them on Linux, macOS and Windows with Python 3.10, 3.13 and 3.14.
 
 <a name="structure-en"></a>
 ## Project structure

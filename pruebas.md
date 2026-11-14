@@ -1,13 +1,14 @@
-# Pruebas manuales — github-pages-auditor v1.2.0
+# Pruebas — github-pages-auditor v1.2.1
 
 Marca cada prueba con `[x]` cuando pase, `[!]` si falla, y anota lo que veas en **Resultado**.
+**Auto** = la cubre un test de `pytest` contra un GitHub simulado (no toca la red), así que se repite sola en cada CI. Lo que dependa de GitHub/PyPI reales sigue siendo manual.
 Los comandos están pensados para **PowerShell** en la carpeta del proyecto. Los números de ejemplo
 (82 repos, 12 Pages...) son los de la ejecución del 2026-11-11 y pueden cambiar si cambian tus repos.
 
 | Dato | Valor |
 | --- | --- |
 | Fecha | 2026-11-12 |
-| Versión probada | 1.2.0 |
+| Versión probada | 1.2.1 (las marcadas «1.2.0» se hicieron a mano el 12-nov; las «auto» las ejecuta pytest) |
 | Sistema / Python | Windows, Python 3.13 / 3.14 |
 | Probado por | Alberto |
 
@@ -32,7 +33,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   ```powershell
   uv run pytest
   ```
-  Esperado: `122 passed`.
+  Esperado: `152 passed` (en Python 3.10: `144 passed, 1 skipped`).
   **Resultado:** OK: 121 passed
 
 ---
@@ -50,7 +51,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   ```powershell
   uv run github-pages-auditor -V
   ```
-  Esperado: `github-pages-auditor 1.2.0` + créditos.
+  Esperado: `github-pages-auditor 1.2.1` + créditos (en la 1.2.0 salió `1.2.0`).
   **Resultado:** OK, se ven los créditos
 
 - [x] **1.2b Alias antiguo**
@@ -136,11 +137,11 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   uv run github-pages-auditor -u alberto2005-coder -k token_falso; $LASTEXITCODE
   ```
   Esperado: "GitHub rechazó el token (401)", sin traceback, código `2`.
-  **Resultado:** OK: 401 sin traceback, código 2
+  **Resultado:** OK: 401 sin traceback, código 2 · Auto (1.2.1): `tests/test_e2e.py::test_3_5_token_falso_da_2_sin_traceback`
 
-- [ ] **3.6 El token no se filtra** (opcional, avanzado)
+- [x] **3.6 El token no se filtra** (opcional, avanzado)
   Ejecuta con un proxy/inspector de tráfico (p. ej. mitmproxy) y comprueba que la cabecera `Authorization` solo aparece en peticiones a `api.github.com`.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_3_6_el_token_solo_viaja_a_la_api` (comprobado sobre las peticiones de la sesión, sin proxy)
 
 ---
 
@@ -214,19 +215,19 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   uv run github-pages-auditor -u usuario-que-no-existe-xyz123; $LASTEXITCODE
   ```
   Esperado: "no existe" y código `2`.
-  **Resultado:** OK: código 2
+  **Resultado:** OK: código 2 · Auto (1.2.1): `tests/test_e2e.py::test_5_5_usuario_inexistente_da_2`
 
-- [ ] **5.6 Sin repositorios → 3**
+- [x] **5.6 Sin repositorios → 3**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder --exclude-forks --exclude-archived -q --fail-on any; $LASTEXITCODE
   ```
   Esperado: este NO da 3 (tienes repos propios). Para forzar el 3, usa una cuenta sin repos públicos y comprueba el código `3` y que no se crea archivo.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_5_6_sin_repos_tras_filtrar_da_3_y_no_escribe`
 
-- [ ] **5.7 Ctrl+C → 130**
+- [x] **5.7 Ctrl+C → 130**
   Lanza una auditoría y pulsa Ctrl+C a media barra.
   Esperado: "Operación cancelada" y código `130`, sin traceback.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_cli.py::test_ctrl_c_da_130` (simulado; la pulsación real de Ctrl+C sigue siendo opcional a mano)
 
 - [x] **5.8 Carpeta de salida inexistente**
   ```powershell
@@ -239,33 +240,33 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 ## 6. Salud de Pages
 
-- [ ] **6.1 Pages sanas**
+- [x] **6.1 Pages sanas**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder -k $env:GITHUB_TOKEN -f json -o - -q | ConvertFrom-Json | Select-Object -Expand repos | Where-Object { $_.pages } | Select-Object name, @{n='estado';e={$_.pages.status}}, @{n='ms';e={$_.pages.response_ms}}, @{n='titulo';e={$_.pages.title}}
   ```
   Esperado: tus ~12 Pages con estado `ok`, tiempo de respuesta y título de la página.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_6_1_pages_sana_trae_estado_tiempo_y_titulo`
 
-- [ ] **6.2 Pages rota (404 / sin index)** — requiere un repo de prueba
+- [x] **6.2 Pages rota (404 / sin index)** — requiere un repo de prueba
   1. Crea un repo `pruebas-pages-roto` y activa Pages (Settings → Pages) **sin** subir `index.html`.
   2. Ejecuta con token:
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder -k $env:GITHUB_TOKEN --fail-on broken-pages; $LASTEXITCODE
   ```
   Esperado: aparece la fila "Pages rotas", la sección "GITHUB PAGES ROTAS" en el `.txt` con `404`, y código `1`.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_6_2_pages_rota_con_token_da_exit_1_y_aparece_en_el_informe` (con un repo de prueba real sigue siendo opcional)
 
-- [ ] **6.3 Sin token no marca "rotas"**
+- [x] **6.3 Sin token no marca "rotas"**
   Repite 6.2 con `--no-api`. Esperado: ese repo simplemente no aparece como Pages (no se puede saber que debería tenerla); no hay "Pages rotas".
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_6_3_sin_pages_activadas_no_hay_pages_rotas`
 
-- [ ] **6.4 Aviso de HTTPS no forzado / build** (opcional)
+- [x] **6.4 Aviso de HTTPS no forzado / build** (opcional)
   En un repo de prueba desactiva "Enforce HTTPS" y comprueba que el JSON trae `warnings: ["https-no-forzado"]`.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_6_4_avisos_de_https_no_forzado_y_build`
 
-- [ ] **6.5 Dominio personalizado caído/mal configurado** (opcional)
+- [x] **6.5 Dominio personalizado caído/mal configurado** (opcional)
   Apunta temporalmente un CNAME a un dominio sin DNS. Esperado (con token): estado `roto` con `sin-conexion` o `tls-error`.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_6_5_dominio_caido_o_mal_configurado_es_pages_rota` (tls-error, sin-conexion y timeout)
 
 ---
 
@@ -308,86 +309,86 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   Esperado: "No existe el archivo para --inject", código `2`, antes de auditar.
   **Resultado:** OK: código 2
 
-- [ ] **7.6 `--inject` + `-o`**
+- [x] **7.6 `--inject` + `-o`**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder --inject prueba-readme.md -o informe.txt
   ```
   Esperado: actualiza el README **y** escribe `informe.txt`.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_config.py::test_inject_con_o_explicito_tambien_escribe_informe`
 
 ---
 
 ## 8. Filtros
 
-- [ ] **8.1 `--exclude-forks`**
+- [x] **8.1 `--exclude-forks`**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder --exclude-forks -q -f json -o - | ConvertFrom-Json | Select-Object -Expand summary
   ```
   Esperado: `total` ≈ 71 (82 − 11 forks) y `forks` = 0.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_8_1_exclude_forks`
 
-- [ ] **8.2 `--exclude-archived`**
+- [x] **8.2 `--exclude-archived`**
   Esperado: `archived` = 0 y menos peticiones (no se analizan los archivados).
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_8_2_exclude_archived_ni_siquiera_se_analizan`
 
 ---
 
 ## 9. Configuración y `.env`
 
-- [ ] **9.1 Solo `.env`**
+- [x] **9.1 Solo `.env`**
   ```powershell
   Copy-Item .env.example .env
   # edita .env y rellena solo USUARIO_GITHUB=alberto2005-coder
   uv run github-pages-auditor
   ```
   Esperado: funciona sin parámetros.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_env_real.py::test_9_1_solo_con_env_funciona_sin_parametros` (python-dotenv real sobre un .env temporal)
 
-- [ ] **9.2 `--no-env`**
+- [x] **9.2 `--no-env`**
   ```powershell
   uv run github-pages-auditor --no-env; $LASTEXITCODE
   ```
   Esperado: vuelve a pedir el usuario (código `2`).
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_env_real.py::test_9_2_no_env_ignora_el_archivo` (python-dotenv real sobre un .env temporal)
 
-- [ ] **9.3 Prioridad parámetros > entorno**
+- [x] **9.3 Prioridad parámetros > entorno**
   Con `USUARIO_GITHUB=otro` en `.env`, ejecuta con `-u alberto2005-coder`. Esperado: audita `alberto2005-coder`.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_env_real.py::test_9_3_los_parametros_ganan_al_env` (python-dotenv real sobre un .env temporal)
 
-- [ ] **9.4 Variables vacías se ignoran**
+- [x] **9.4 Variables vacías se ignoran**
   Deja `GITHUB_TOKEN=` vacío en `.env`. Esperado: modo web (no intenta usar la API con un token vacío).
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_env_real.py::test_9_4_variables_vacias_se_ignoran` (python-dotenv real sobre un .env temporal)
 
-- [ ] **9.5 El `.env` se encuentra desde otra carpeta** (instalado como paquete)
+- [x] **9.5 El `.env` se encuentra desde otra carpeta** (instalado como paquete)
   Instala (`uv tool install .`), colócate en una carpeta con un `.env` y ejecuta `github-pages-auditor`. Esperado: lo lee del directorio actual.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_env_real.py::test_9_5_el_env_se_busca_en_el_directorio_actual` (python-dotenv real sobre un .env temporal)
 
 ---
 
 ## 10. Robustez
 
-- [ ] **10.1 Sin conexión**
+- [x] **10.1 Sin conexión**
   Desactiva la red y ejecuta. Esperado: mensaje de error de red claro y código `2`, sin traceback.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_10_1_sin_conexion_da_2_sin_traceback` (red simulada caída)
 
-- [ ] **10.2 `--timeout` bajo**
+- [x] **10.2 `--timeout` bajo**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder --timeout 0.05 -q -f json -o - | ConvertFrom-Json | Select-Object -Expand summary
   ```
   Esperado: no se cuelga; algunos repos pueden salir en `errors` (sección "no analizados") sin tumbar el resto.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_10_2_timeout_en_un_repo_no_tumba_el_resto`
 
-- [ ] **10.3 `--workers 1` y `--workers 40`**
+- [x] **10.3 `--workers 1` y `--workers 40`**
   Esperado: funcionan y dan los mismos resultados; el orden del informe es siempre el mismo.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_10_3_y_10_4_mismo_resultado_con_1_o_40_hilos_y_orden_estable`
 
-- [ ] **10.4 Orden determinista**
+- [x] **10.4 Orden determinista**
   Ejecuta dos veces `-f json` y compara los `repos` (ignorando `generated_at`). Esperado: idénticos.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_10_3_y_10_4_mismo_resultado_con_1_o_40_hilos_y_orden_estable`
 
-- [ ] **10.5 Límite de tasa sin token** (opcional)
+- [x] **10.5 Límite de tasa sin token** (opcional)
   Ejecuta el modo web varias veces seguidas hasta recibir un 429. Esperado: mensaje "GitHub limitó las peticiones" sugiriendo usar token, código `2`.
-  **Resultado:**
+  **Resultado:** Auto (1.2.1): `tests/test_e2e.py::test_10_5_limite_de_tasa_da_2_con_mensaje` (simulado)
 
 ---
 
@@ -454,10 +455,60 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 - [ ] **13.1 README en GitHub**: los índices ES/EN llevan a su sección, la tabla de opciones coincide con `--help`, y el comando `git clone` apunta a `github-pages-auditor`.
   **Resultado:**
 
-- [ ] **13.2 CHANGELOG**: cambia «Unreleased» por la fecha de la release de la 1.2.0.
-  **Resultado:**
+- [x] **13.2 CHANGELOG**: cambia «Unreleased» por la fecha de la release de la 1.2.0.
+  **Resultado:** Auto (1.2.1): `tests/test_release.py::test_changelog_tiene_la_version_actual` (la entrada 1.2.1 lleva fecha)
 
 - [ ] **13.3 Descripción de la release v1.1.0**: corrige la URL de instalación a `github-pages-auditor.git@v1.1.0`.
+  **Resultado:**
+
+---
+
+## 14. Novedades de la 1.2.1
+
+- [x] **14.1 Versión, CHANGELOG y `uv.lock` coherentes**
+  Esperado: `__version__`, `pyproject.toml`, entrada del CHANGELOG y `uv.lock` dicen 1.2.1 (si el lock se queda viejo, el workflow con `--frozen` falla).
+  **Resultado:** Auto (1.2.1): `tests/test_release.py::test_changelog_tiene_la_version_actual`, `::test_uv_lock_coincide_con_la_version`. Este test detectó un `uv.lock` viejo durante la preparación y se regeneró.
+
+- [x] **14.2 Metadatos públicos sin correo**
+  Esperado: ningún autor/mantenedor con `email` en `pyproject.toml`.
+  **Resultado:** Auto (1.2.1): `tests/test_release.py::test_metadatos_publicos`.
+
+- [x] **14.3 Classifiers cubren la matriz del CI (3.10, 3.13, 3.14)**
+  **Resultado:** Auto (1.2.1): `tests/test_release.py::test_classifiers_cubren_las_versiones_del_ci`.
+
+- [x] **14.4 El JSON está documentado campo a campo**
+  Esperado: `docs/json-schema.md` menciona todos los campos que emite `-f json`.
+  **Resultado:** Auto (1.2.1): `tests/test_release.py::test_la_documentacion_del_json_cubre_todos_los_campos`.
+
+- [x] **14.5 README sin tokens `ghp_`, con enlaces absolutos a `docs/`**
+  **Resultado:** Auto (1.2.1): `tests/test_release.py::test_readme_enlaces_absolutos_a_docs_y_sin_tokens_ghp`.
+
+- [x] **14.6 Paquete construido e instalable** (en entorno limpio, con `uv` y con `pip`)
+  **Resultado:** OK (2026-11-14): `uv build` genera wheel y sdist 1.2.1; instalado en entorno limpio con `uv pip`, con `pip` y con `uv tool install` (sdist); `github-pages-auditor -V` y el alias `ver-github-pages -V` dan 1.2.1. Metadatos: autor sin correo, classifier 3.14.
+
+- [ ] **14.7 CI en verde con Python 3.14** (tras el push)
+  Esperado: las 9 combinaciones (Ubuntu/macOS/Windows × 3.10/3.13/3.14) pasan en Actions.
+  **Resultado:**
+
+- [ ] **14.8 Badges del README** (tras el push y la release)
+  Esperado: se ven los 4 badges (PyPI, Python, Tests, licencia) en GitHub; el de PyPI muestra `1.2.1` tras publicar.
+  **Resultado:**
+
+- [ ] **14.9 Receta de resumen del job** (opcional)
+  En un repo de prueba, añade el paso de `docs/ci.md` §2 y mira la pestaña *Summary* del job. Esperado: aparece la tabla de demos.
+  **Resultado:**
+
+- [ ] **14.10 Receta de refresco semanal del README** (opcional)
+  Copia el workflow de `docs/ci.md` §3 a un repo con los marcadores y lánzalo con *Run workflow*. Esperado: un commit «docs: actualizar demos» solo si hubo cambios.
+  **Resultado:**
+
+- [ ] **14.11 Publicación de la 1.2.1** (tras la release `v1.2.1`)
+  ```powershell
+  cd $env:TEMP
+  uvx github-pages-auditor@1.2.1 -V
+  uvx github-pages-auditor@1.2.1 -u alberto2005-coder -f json -o - -q | ConvertFrom-Json | Select-Object -Expand summary
+  ```
+  Esperado: `github-pages-auditor 1.2.1` con créditos y el resumen (82 repos, 12 Pages). En `https://pypi.org/project/github-pages-auditor/` ya no aparece tu correo y el README es el nuevo.
   **Resultado:**
 
 ---
@@ -468,18 +519,19 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 | --- | :---: | :---: | --- |
 | 0. Preparación | 2 | 0 | 2/2 hechas |
 | 1. Ayuda y errores de uso | 5 | 0 | 5/5 hechas |
-| 2. Modo web | 3 | 0 | 3/4 hechas; el resto, opcional/pendiente |
-| 3. Modo API | 5 | 0 | 5/6 hechas; el resto, opcional/pendiente |
+| 2. Modo web | 3 | 0 | 3/4 hechas; el resto, pendiente u opcional |
+| 3. Modo API | 6 | 0 | 6/6 hechas |
 | 4. Formatos | 4 | 0 | 4/4 hechas |
-| 5. Códigos de salida | 6 | 0 | 6/8 hechas; el resto, opcional/pendiente |
-| 6. Salud de Pages | 0 | 0 | 0/5 hechas; el resto, opcional/pendiente |
-| 7. `--inject` | 5 | 0 | 5/6 hechas; el resto, opcional/pendiente |
-| 8. Filtros | 0 | 0 | 0/2 hechas; el resto, opcional/pendiente |
-| 9. Configuración / `.env` | 0 | 0 | 0/5 hechas; el resto, opcional/pendiente |
-| 10. Robustez | 0 | 0 | 0/5 hechas; el resto, opcional/pendiente |
-| 11. PyPI | 5 | 0 | 5/7 hechas; el resto, opcional/pendiente |
-| 12. CI | 0 | 0 | 0/2 hechas; el resto, opcional/pendiente |
-| 13. Documentación | 0 | 0 | 0/3 hechas; el resto, opcional/pendiente |
+| 5. Códigos de salida | 8 | 0 | 8/8 hechas |
+| 6. Salud de Pages | 5 | 0 | 5/5 hechas |
+| 7. `--inject` | 5 | 0 | 5/6 hechas; el resto, pendiente u opcional |
+| 8. Filtros | 2 | 0 | 2/2 hechas |
+| 9. Configuración / `.env` | 5 | 0 | 5/5 hechas |
+| 10. Robustez | 5 | 0 | 5/5 hechas |
+| 11. PyPI | 5 | 0 | 5/7 hechas; el resto, pendiente u opcional |
+| 12. CI | 0 | 0 | 0/2 hechas; el resto, pendiente u opcional |
+| 13. Documentación | 0 | 0 | 0/3 hechas; el resto, pendiente u opcional |
+| 14. Novedades 1.2.1 | 6 | 0 | 6/11 hechas; el resto, pendiente u opcional |
 
 **Bugs encontrados** (comando, resultado obtenido, resultado esperado):
 
@@ -487,4 +539,4 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 2. `-f json -o -` con UnicodeEncodeError en Windows (cp1252) → corregido (JSON ASCII por stdout, UTF-8 en el resto).
 3. Nota: un token revocado definido en `$env:GITHUB_TOKEN` hace que el modo por defecto dé 401 (comportamiento correcto).
 
-**¿Listo para publicar la 1.2.0?** [x] Sí [ ] No — publicada el 2026-11-12; pruebas imprescindibles superadas.
+**¿Listo para publicar la 1.2.1?** [x] Sí [ ] No — todo lo automatizable pasa; faltan las comprobaciones que necesitan GitHub/PyPI reales (14.7, 14.8, 14.11).
