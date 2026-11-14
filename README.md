@@ -1,15 +1,9 @@
 # GitHub Profile & Pages Auditor
 
-<<<<<<< HEAD
-[![PyPI](https://img.shields.io/pypi/v/github-pages-auditor)](https://pypi.org/project/github-pages-auditor/) [![Python](https://img.shields.io/pypi/pyversions/github-pages-auditor)](https://pypi.org/project/github-pages-auditor/) [![Tests](https://github.com/alberto2005-coder/github-pages-auditor/actions/workflows/test.yml/badge.svg)](https://github.com/alberto2005-coder/github-pages-auditor/actions/workflows/test.yml) [![License: MIT](https://img.shields.io/pypi/l/github-pages-auditor)](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/LICENSE)
-
-[Español](#español) | [English](#english)
-=======
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/github-pages-auditor?label=PyPI)](https://pypi.org/project/github-pages-auditor/)
 [![CI](https://github.com/alberto2005-coder/github-pages-auditor/actions/workflows/test.yml/badge.svg)](https://github.com/alberto2005-coder/github-pages-auditor/actions/workflows/test.yml)
-[![MIT](https://img.shields.io/badge/Licencia-MIT-green)](LICENSE)
->>>>>>> d580811a802da49124ead09c96594e9ae84b5773
+[![MIT](https://img.shields.io/badge/Licencia-MIT-green)](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/LICENSE)
 
 [Español](#español) · [English](#english)
 
@@ -133,7 +127,7 @@ github-pages-auditor -u alberto2005-coder -k github_pat_xxx
 python -m github_pages_auditor -u alberto2005-coder
 ```
 
-En **Windows PowerShell**, define el token con `$env:GITHUB_TOKEN = "ghp_tu_token"` antes de ejecutar el comando.
+Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente.
 
 **Opciones**
 
@@ -163,7 +157,7 @@ En **Windows PowerShell**, define el token con `$env:GITHUB_TOKEN = "ghp_tu_toke
 2. **Variables de entorno**, incluidas las de un archivo `.env` **opcional** en el directorio actual: `USUARIO_GITHUB`, `DOMINIO_WEB`, `GITHUB_TOKEN`, `ARCHIVO_SALIDA`. Un valor vacío se trata como no definido.
 3. **Valores por defecto.**
 
-Hay una plantilla en [`.env.example`](.env.example).
+Hay una plantilla en [`.env.example`](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/.env.example).
 
 ### Códigos de salida
 
@@ -258,7 +252,7 @@ Desarrollado por **Alberto Ortiz**.
 
 ### Licencia
 
-Distribuido bajo la **Licencia MIT**. Consulta [LICENSE](LICENSE). © 2026 Alberto Ortiz.
+Distribuido bajo la **Licencia MIT**. Consulta [LICENSE](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/LICENSE). © 2026 Alberto Ortiz.
 
 ---
 
@@ -378,7 +372,7 @@ github-pages-auditor -u alberto2005-coder -k github_pat_xxx
 python -m github_pages_auditor -u alberto2005-coder
 ```
 
-On **Windows PowerShell**, set the token with `$env:GITHUB_TOKEN = "ghp_your_token"` before running the command.
+A fine-grained token with no permissions (public repositories only) is enough.
 
 **Options**
 
@@ -408,7 +402,7 @@ On **Windows PowerShell**, set the token with `$env:GITHUB_TOKEN = "ghp_your_tok
 2. **Environment variables**, including those from an **optional** `.env` file in the current directory: `USUARIO_GITHUB`, `DOMINIO_WEB`, `GITHUB_TOKEN`, `ARCHIVO_SALIDA`. An empty value counts as unset.
 3. **Built-in defaults.**
 
-A template is provided in [`.env.example`](.env.example).
+A template is provided in [`.env.example`](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/.env.example).
 
 ### Exit codes
 
@@ -503,4 +497,4 @@ Developed by **Alberto Ortiz**.
 
 ### License
 
-Distributed under the **MIT License**. See [LICENSE](LICENSE). © 2026 Alberto Ortiz.
+Distributed under the **MIT License**. See [LICENSE](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/LICENSE). © 2026 Alberto Ortiz.
