@@ -1,0 +1,42 @@
+name: GitHub Pages Auditor
+description: Audita los repos públicos de un usuario (Pages, releases y calidad). / Audit a user's public repos.
+author: Alberto Ortiz
+branding:
+  icon: check-circle
+  color: blue
+inputs:
+  user:
+    description: Usuario de GitHub a auditar
+    required: true
+  token:
+    description: Token (p. ej. secrets.GITHUB_TOKEN); activa el modo API
+    required: false
+    default: ""
+  fail-on:
+    description: Reglas o grupos (any, community, all) que hacen fallar el job
+    required: false
+    default: ""
+  args:
+    description: Argumentos extra para la CLI (p. ej. "--exclude-forks --baseline base.json")
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+    - name: Instalar la herramienta
+      shell: bash
+      run: python -m pip install "${{ github.action_path }}"
+    - name: Auditar
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        INPUT_USER: ${{ inputs.user }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_ARGS: ${{ inputs.args }}
+      run: |
+        extra=()
+        if [ -n "$INPUT_FAIL_ON" ]; then extra+=(--fail-on "$INPUT_FAIL_ON"); fi
+        github-pages-auditor -u "$INPUT_USER" --no-env -f github "${extra[@]}" $INPUT_ARGS

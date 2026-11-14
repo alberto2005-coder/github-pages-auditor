@@ -27,3 +27,22 @@ jobs:
 
       - name: Run pytest
         run: uv run --frozen --python ${{ matrix.python }} pytest
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run --frozen ruff check .
+
+  self-audit:
+    # La herramienta audita su propio repositorio (solo reglas que dependen de archivos, no de ajustes del repo).
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: >
+          uv run --frozen github-pages-auditor -u ${{ github.repository_owner }} -k ${{ secrets.GITHUB_TOKEN }}
+          --no-env --only ${{ github.event.repository.name }} -f github -q
+          --fail-on missing-readme,missing-license,missing-gitignore,missing-description,missing-security-policy,missing-contributing,missing-code-of-conduct,missing-issue-template

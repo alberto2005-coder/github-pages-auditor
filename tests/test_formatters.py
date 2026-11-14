@@ -5,7 +5,7 @@ import pytest
 
 from github_pages_auditor import __version__
 from github_pages_auditor.errors import ErrorSalida
-from github_pages_auditor.formatters import MARCA_FIN, MARCA_INICIO, a_dict, a_json, bloque_markdown, inyectar
+from github_pages_auditor.formatters import MARCA_FIN, MARCA_INICIO, a_json, bloque_markdown, inyectar
 from github_pages_auditor.models import AuditReport, PagesHealth, RepoInfo
 from github_pages_auditor.rules import TODAS, disparadas, evaluar
 

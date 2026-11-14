@@ -137,11 +137,19 @@ Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente
 | `-w` | `--web`, `--dominio` | Dominio base de las Pages | No (def. `https://<usuario>.github.io`) |
 | `-k` | `--key`, `--token` | Personal Access Token (activa la API) | No |
 | `-o` | `--output` | Archivo del informe; `-` = salida estándar | No (def. `paginas_github.<formato>`) |
-| `-f` | `--format` | `txt`, `json` o `md` | No (def. `txt`) |
-| `--fail-on` | | Reglas que provocan código de salida 1 (o `any`) | No |
+| `-f` | `--format` | `txt`, `json`, `md` o `github` (anotaciones de Actions) | No (def. `txt`) |
+| `--fail-on` | | Reglas (o grupos `any`, `community`, `all`) que provocan código de salida 1 | No |
 | `--exclude-forks` | | Ignora los forks | No |
 | `--exclude-archived` | | Ignora los repositorios archivados | No |
 | `--inject` | | Actualiza la tabla de demos dentro de un archivo (README) | No |
+| `--ignore` | | Excluye repos por nombre o patrón (`a,b*`) | No |
+| `--only` | | Audita solo estos repos (nombres o patrones) | No |
+| `--details` | | Estrellas, lenguaje, licencia, último push y release | No |
+| `--sort` | | `listing` (def.), `name`, `stars`, `updated` | No |
+| `--stale-months` | | Meses sin push para `stale-repo` | No (def. `12`) |
+| `--baseline` | | Informe JSON previo: `--fail-on` solo por hallazgos nuevos | No |
+| `--config` | | Archivo TOML de configuración | No (def. `.github-pages-auditor.toml`) |
+| `--no-config` | | No leer el archivo de configuración | No |
 | `-q` | `--quiet` | Sin tablas ni progreso | No |
 | `--workers` | | Hilos en paralelo | No (def. `15`) |
 | `--timeout` | | Timeout por petición, en segundos | No (def. `10`) |
@@ -155,7 +163,8 @@ Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente
 
 1. **Parámetros de consola** (`-u`, `-w`, `-k`, `-o`…).
 2. **Variables de entorno**, incluidas las de un archivo `.env` **opcional** en el directorio actual: `USUARIO_GITHUB`, `DOMINIO_WEB`, `GITHUB_TOKEN`, `ARCHIVO_SALIDA`. Un valor vacío se trata como no definido.
-3. **Valores por defecto.**
+3. **Archivo `.github-pages-auditor.toml`** (opcional, en el directorio actual): claves `user`, `web`, `output`, `format`, `fail_on`, `exclude_forks`, `exclude_archived`, `ignore`, `only`, `stale_months`, `workers`, `timeout`, `details`, `sort`, `no_api`, `quiet`, `no_color`, `baseline`. **No admite el token** (es un error ponerlo ahí). `--no-config` lo ignora.
+4. **Valores por defecto.**
 
 Hay una plantilla en [`.env.example`](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/.env.example).
 
@@ -181,7 +190,9 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 
 **Markdown** (`-f md`): tabla de tus demos en vivo, ordenada y sin forks, entre los marcadores `<!-- github-pages-auditor:start -->` y `<!-- github-pages-auditor:end -->`. Con `--inject README.md` se actualiza **dentro de ese archivo**, entre esos marcadores (si no existen, falla sin tocar nada).
 
-**Reglas de `--fail-on`:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` o `any`. Ejemplo: `--fail-on missing-license,broken-pages`.
+**Reglas de `--fail-on`:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` (`any` = estas), más las de comunidad (solo modo API; no aplican a forks ni archivados): `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` (`community` = estas; `all` = todas). Ejemplo: `--fail-on missing-license,broken-pages`.
+
+**`-f github`** escribe anotaciones `::error::`/`::warning::` para el log de Actions; **`--baseline informe.json`** compara con un informe anterior y `--fail-on` solo se dispara por hallazgos nuevos. **Action reutilizable:** `uses: alberto2005-coder/github-pages-auditor@v1.3.0` (ver [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
 
 **Salud de Pages.** Para cada sitio se comprueba, además del código 200: errores TLS, timeouts, redirecciones a otro dominio o en bucle, página vacía o sin HTML, y lentitud (aviso). Con **token** se sabe qué repos tienen Pages activadas, así que un 404, un build fallido (`errored`) o cualquier fallo cuenta como **Pages rotas**. Sin token no se puede saber si un repo *debería* tener Pages, por lo que un fallo solo significa «no hay Pages».
 
@@ -383,10 +394,18 @@ A fine-grained token with no permissions (public repositories only) is enough.
 | `-k` | `--key`, `--token` | Personal Access Token (enables the API) | No |
 | `-o` | `--output` | Report file; `-` = standard output | No (default `paginas_github.<format>`) |
 | `-f` | `--format` | `txt`, `json` or `md` | No (default `txt`) |
-| `--fail-on` | | Rules that cause exit code 1 (or `any`) | No |
+| `--fail-on` | | Rules (or groups `any`, `community`, `all`) that cause exit code 1 | No |
 | `--exclude-forks` | | Ignore forks | No |
 | `--exclude-archived` | | Ignore archived repositories | No |
 | `--inject` | | Update the demos table inside a file (README) | No |
+| `--ignore` | | Exclude repos by name or pattern (`a,b*`) | No |
+| `--only` | | Audit only these repos (names or patterns) | No |
+| `--details` | | Stars, language, license, last push and release | No |
+| `--sort` | | `listing` (default), `name`, `stars`, `updated` | No |
+| `--stale-months` | | Months without a push for `stale-repo` | No (default `12`) |
+| `--baseline` | | Previous JSON report: `--fail-on` only for NEW findings | No |
+| `--config` | | TOML configuration file | No (default `.github-pages-auditor.toml`) |
+| `--no-config` | | Do not read the configuration file | No |
 | `-q` | `--quiet` | No tables or progress | No |
 | `--workers` | | Parallel threads | No (default `15`) |
 | `--timeout` | | Per-request timeout, in seconds | No (default `10`) |
@@ -426,7 +445,9 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 
 **Markdown** (`-f md`): a sorted table of your live demos, forks excluded, between the `<!-- github-pages-auditor:start -->` and `<!-- github-pages-auditor:end -->` markers. `--inject README.md` updates it **inside that file**, between those markers (if they are missing it fails without touching anything).
 
-**`--fail-on` rules:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` or `any`. Example: `--fail-on missing-license,broken-pages`.
+**`--fail-on` rules:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` (`any` = these), plus community rules (API mode only; not applied to forks or archived repos): `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` (`community` = these; `all` = everything). Example: `--fail-on missing-license,broken-pages`.
+
+**`-f github`** writes `::error::`/`::warning::` annotations for the Actions log; **`--baseline report.json`** compares with a previous report so `--fail-on` only triggers on NEW findings. **Reusable Action:** `uses: alberto2005-coder/github-pages-auditor@v1.3.0` (see [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
 
 **Pages health.** Besides a 200 status, each site is checked for TLS errors, timeouts, redirects to another domain or loops, empty or non-HTML pages, and slowness (warning). With a **token** the tool knows which repos have Pages enabled, so a 404, a failed build (`errored`) or any failure counts as **broken Pages**. Without a token it cannot know whether a repo *should* have Pages, so a failure just means “no Pages”.
 

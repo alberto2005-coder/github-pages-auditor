@@ -18,6 +18,7 @@ class PagesHealth:
     titulo: Optional[str] = None
     problemas: List[str] = field(default_factory=list)  # errores: la página está rota
     avisos: List[str] = field(default_factory=list)     # avisos: funciona pero mejorable
+    tls_dias: Optional[int] = None  # días hasta que caduca el certificado (None = no comprobado)
 
     @property
     def ok(self) -> bool:
@@ -45,6 +46,24 @@ class RepoInfo:
     descripcion: Optional[str] = None
     pages_salud: Optional[PagesHealth] = None
     error: Optional[str] = None
+    # Datos del repositorio (modo API; ``None`` = no disponible, p. ej. en modo web).
+    estrellas: Optional[int] = None
+    forks_count: Optional[int] = None
+    issues_abiertas: Optional[int] = None
+    lenguaje: Optional[str] = None
+    topics: Optional[List[str]] = None
+    licencia_spdx: Optional[str] = None
+    creado: Optional[str] = None
+    ultimo_push: Optional[str] = None
+    homepage: Optional[str] = None  # "" = vacío; None = desconocido
+    # Última release (feed Atom: funciona con y sin token).
+    ultima_release: Optional[str] = None
+    fecha_release: Optional[str] = None
+    # Ficheros de comunidad (modo API; ``None`` = no se pudo comprobar).
+    tiene_security: Optional[bool] = None
+    tiene_contributing: Optional[bool] = None
+    tiene_code_of_conduct: Optional[bool] = None
+    tiene_issue_template: Optional[bool] = None
 
     @property
     def pages_rota(self) -> bool:

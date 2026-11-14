@@ -15,14 +15,18 @@ from urllib.parse import urlparse
 
 import requests
 
+from . import tls
 from .models import ESTADO_NINGUNA, ESTADO_OK, ESTADO_ROTA, PagesHealth
 
 LIMITE_BYTES = 65536
 MAX_REDIRECCIONES = 5
 UMBRAL_LENTA_MS = 3000
+UMBRAL_TLS_DIAS = 14
 
 _TITULO = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 _HTML = re.compile(r"<(!doctype\s+html|html|head|body)\b", re.IGNORECASE)
+_META_DESCRIPCION = re.compile(r"<meta\b[^>]*\bname\s*=\s*[\"']description[\"']", re.IGNORECASE)
+_OG_IMAGE = re.compile(r"<meta\b[^>]*\bproperty\s*=\s*[\"']og:image[\"']", re.IGNORECASE)
 
 
 def _leer_inicio(response) -> str:
@@ -83,6 +87,11 @@ def inspeccionar(session, url: str, esperada: bool = False) -> PagesHealth:
                 problemas.append("cuerpo-vacio")
             elif not _HTML.search(cuerpo):
                 avisos.append("sin-html")
+            else:  # primera impresión al compartir el enlace
+                if not _META_DESCRIPCION.search(cuerpo):
+                    avisos.append("sin-meta-description")
+                if not _OG_IMAGE.search(cuerpo):
+                    avisos.append("sin-og-image")
             titulo = _titulo(cuerpo)
             if ms > UMBRAL_LENTA_MS:
                 avisos.append("lenta")
@@ -99,3 +108,27 @@ def inspeccionar(session, url: str, esperada: bool = False) -> PagesHealth:
         estado=estado, url=url, url_final=url_final if estado == ESTADO_OK or esperada else None,
         http_status=status, ms=ms, titulo=titulo, problemas=problemas, avisos=avisos,
     )
+
+
+def profundizar(session, salud: PagesHealth) -> None:
+    """Comprobaciones extra de una web que ya responde bien: caducidad TLS y ``404.html``.
+
+    Solo añade avisos (nunca marca la web como rota) y nunca lanza excepciones de red.
+    """
+    if not salud.ok:
+        return
+    base = salud.url_final or salud.url
+    partes = urlparse(base)
+    if partes.scheme == "https" and partes.hostname:
+        salud.tls_dias = tls.dias_restantes(partes.hostname)
+        if salud.tls_dias is not None and salud.tls_dias < UMBRAL_TLS_DIAS:
+            salud.avisos.append("tls-caduca-pronto")
+    raiz = base if base.endswith("/") else base + "/"
+    try:
+        respuesta = session.get(raiz + "404.html", allow_redirects=True, stream=True)
+        existe = respuesta.status_code == 200
+        respuesta.close()
+    except requests.RequestException:
+        return  # no se pudo comprobar: no se afirma nada
+    if not existe:
+        salud.avisos.append("sin-404-personalizada")

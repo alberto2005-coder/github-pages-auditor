@@ -3,9 +3,13 @@ import threading
 
 import pytest
 
+from github_pages_auditor import audit
+
 
 class FakeResponse:
-    PAGINA = "<!doctype html><html><head><title>Demo</title></head><body>hola</body></html>"
+    PAGINA = ("<!doctype html><html><head><title>Demo</title>"
+              '<meta name="description" content="Demo"><meta property="og:image" content="https://x/i.png">'
+              "</head><body>hola</body></html>")
 
     def __init__(self, status_code=200, text=None, json_data=None, headers=None, url="", history=None):
         self.status_code = status_code
@@ -64,3 +68,15 @@ def entorno_limpio(monkeypatch):
     for v in ("USUARIO_GITHUB", "DOMINIO_WEB", "GITHUB_TOKEN", "ARCHIVO_SALIDA"):
         monkeypatch.delenv(v, raising=False)
     monkeypatch.setattr("github_pages_auditor.config.load_dotenv", lambda *a, **k: False)
+    # Nada de sockets reales: la caducidad TLS se simula en cada test que la necesita.
+    monkeypatch.setattr("github_pages_auditor.tls.dias_restantes", lambda *a, **k: None)
+
+
+@pytest.fixture
+def instalar(monkeypatch):
+    """instalar(handler) -> FakeSession usada por la auditoría."""
+    def _instalar(handler):
+        sesion = FakeSession(handler)
+        monkeypatch.setattr(audit, "crear_sesion_http", lambda **kw: sesion)
+        return sesion
+    return _instalar

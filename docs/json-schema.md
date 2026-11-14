@@ -23,6 +23,7 @@ With `-o -` the JSON is pure ASCII (accents and emojis are `\uXXXX` escapes), so
 | `findings` | object | Una lista de repos por regla (vacía si no hay hallazgos) / one repo list per rule |
 | `fail_on` | object | `rules` (pedidas / requested) y `triggered` (disparadas / triggered) |
 | `repos` | array | Un objeto por repositorio / one object per repository |
+| `baseline` | object \| null | Solo con `--baseline`: `file` y `new_findings` (hallazgos nuevos por regla) / only with `--baseline` |
 
 ## `summary`
 
@@ -32,7 +33,9 @@ With `-o -` the JSON is pure ASCII (accents and emojis are `\uXXXX` escapes), so
 ## `findings`
 
 Claves = reglas de `--fail-on` / keys = `--fail-on` rules: `missing-readme`, `missing-license`, `missing-gitignore`,
-`missing-description`, `broken-pages`, `analysis-errors`. Cada valor es una lista de nombres de repositorio.
+`missing-description`, `broken-pages`, `analysis-errors` y, desde 1.3.0, las reglas de comunidad `missing-security-policy`,
+`missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage` y `stale-repo`
+(solo modo API; no aplican a forks ni archivados). Cada valor es una lista de nombres de repositorio.
 Each value is a list of repository names.
 
 ## `repos[]`
@@ -47,6 +50,13 @@ Each value is a list of repository names.
 | `pages_url` | string \| null | URL final de la demo / final demo URL |
 | `has_releases`, `has_readme`, `has_license`, `has_gitignore` | bool | |
 | `has_description` | bool \| null | `null` si no se pudo saber / `null` if unknown |
+| `stars`, `forks`, `open_issues` | int \| null | Contadores del repo (modo API) / repo counters (API mode) |
+| `language`, `license` | string \| null | Lenguaje principal y licencia SPDX (`MIT`) / main language and SPDX license |
+| `topics` | array \| null | Topics del repo / repo topics |
+| `created_at`, `pushed_at` | string \| null | Fechas ISO 8601 / ISO 8601 dates |
+| `homepage` | string \| null | Campo Website del repo / repo Website field |
+| `latest_release` | object \| null | `tag` y `date` de la última release / latest release tag and date |
+| `community` | object | `security_policy`, `contributing`, `code_of_conduct`, `issue_template`: bool o `null` si se desconoce / bool or `null` if unknown |
 | `error` | string \| null | Motivo si el repo no se pudo analizar / why the repo could not be analyzed |
 
 ### `repos[].pages`
@@ -59,7 +69,8 @@ Each value is a list of repository names.
 | `response_ms` | Tiempo de respuesta en ms / response time in ms |
 | `title` | `<title>` de la página / page `<title>` |
 | `problems` | Lista de problemas (hacen que `status` sea `roto`) / problems (make `status` = `roto`): `404`, `http-<código>`, `tls-error`, `timeout`, `sin-conexion`, `redireccion-externa`, `demasiadas-redirecciones`, `cuerpo-vacio`, `build-fallido` |
-| `warnings` | Avisos que no rompen la web / non-breaking warnings: `lenta`, `sin-html`, `https-no-forzado`, `build-en-curso` |
+| `tls_days_left` | Días hasta que caduca el certificado TLS o `null` / days until the TLS certificate expires or `null` |
+| `warnings` | Avisos que no rompen la web / non-breaking warnings: `lenta`, `sin-html`, `https-no-forzado`, `build-en-curso`, `tls-caduca-pronto` (< 14 días), `sin-404-personalizada`, `sin-meta-description`, `sin-og-image`, `homepage-distinta` |
 
 ## Ejemplo / Example
 

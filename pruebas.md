@@ -1,4 +1,4 @@
-# Pruebas — github-pages-auditor v1.2.1
+# Pruebas — github-pages-auditor v1.3.0
 
 Marca cada prueba con `[x]` cuando pase, `[!]` si falla, y anota lo que veas en **Resultado**.
 **Auto** = la cubre un test de `pytest` contra un GitHub simulado (no toca la red), así que se repite sola en cada CI. Lo que dependa de GitHub/PyPI reales sigue siendo manual.
@@ -7,8 +7,8 @@ Los comandos están pensados para **PowerShell** en la carpeta del proyecto. Los
 
 | Dato | Valor |
 | --- | --- |
-| Fecha | 2026-11-12 |
-| Versión probada | 1.2.1 (las marcadas «1.2.0» se hicieron a mano el 12-nov; las «auto» las ejecuta pytest) |
+| Fecha | 2026-11-14 |
+| Versión probada | 1.3.0 (las secciones 0-14 se hicieron a mano con 1.2.x; las «auto» las ejecuta pytest; la 15 es nueva) |
 | Sistema / Python | Windows, Python 3.13 / 3.14 |
 | Probado por | Alberto |
 
@@ -511,6 +511,70 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   Esperado: `github-pages-auditor 1.2.1` con créditos y el resumen (82 repos, 12 Pages). En `https://pypi.org/project/github-pages-auditor/` ya no aparece tu correo y el README es el nuevo.
   **Resultado:** OK (2026-11-14): `uvx github-pages-auditor@1.2.1 -V` → 1.2.1 con créditos; JSON válido (82 repos, 12 Pages, 0 rotas, 0 errores). PyPI: 1.2.1 publicada (wheel + sdist, 08:32 UTC), autor sin correo, classifier 3.14, README nuevo con badges y sin `ghp_`.
 
+## 15. Novedades de la 1.3.0
+
+**Automáticas** (`tests/test_v130.py`, `tests/test_release.py`; 178 tests en verde en Python 3.10, 3.13 y 3.14):
+
+- [x] **15.1 Datos por repo** (estrellas, forks, issues, lenguaje, topics, licencia, fechas, release). **Resultado:** Auto: `test_json_incluye_datos_nuevos_y_schema_sigue_en_1`, `test_atom_extrae_tag_y_fecha`. `schema_version` sigue en 1.
+- [x] **15.2 `--sort` y `--only/--ignore`.** **Resultado:** Auto: `test_sort`, `test_only_e_ignore`.
+- [x] **15.3 Reglas de comunidad y grupos `any`/`community`/`all`** (forks y archivados excluidos; sin datos = sin hallazgos). **Resultado:** Auto: `test_reglas_de_comunidad_y_grupos`, `test_any_no_incluye_comunidad`, `test_sin_datos_no_hay_hallazgos_de_comunidad`, `test_stale_repo_usa_meses`.
+- [x] **15.4 Pages en profundidad** (TLS < 14 días, 404.html, meta description, og:image, Website distinto). **Resultado:** Auto: `test_tls_dias_hasta`, `test_tls_falla_sin_red_devuelve_none`, `test_aviso_tls_y_404`, `test_homepage_distinta`.
+- [x] **15.5 `--baseline`** (sin nuevos = salida 0; archivo inválido = salida 2). **Resultado:** Auto: `test_baseline_sin_nuevos_no_falla`, `test_baseline_invalido_sale_con_2`, `test_baseline_nuevos_funcion`.
+- [x] **15.6 `-f github`** (anotaciones y escapes). **Resultado:** Auto: `test_formato_github`, `test_github_escapa`.
+- [x] **15.7 Archivo `.github-pages-auditor.toml`** (precedencia, `--no-config`, rechaza token y claves desconocidas). **Resultado:** Auto: `test_config_toml`, `test_config_rechaza_token_y_claves_desconocidas` (en 3.10 usa `tomli`; 1 test se omite si falta).
+- [x] **15.8 `--details`** en md y txt. **Resultado:** Auto: `test_details_en_markdown_y_txt`.
+- [x] **15.9 Higiene de release:** CHANGELOG/versión/`uv.lock`, cada opción de la CLI y cada regla documentadas, `action.yml` y archivos de comunidad presentes. **Resultado:** Auto: `tests/test_release.py`.
+- [x] **15.10 Paquete 1.3.0 instalable** (sandbox). **Resultado:** OK: `uv build`; instalado en venv limpio con `uv pip` (3.10, con `tomli`) y con `pip` (3.13); `github-pages-auditor -V` y `ver-github-pages -V` dan 1.3.0; sin tokens en el código.
+
+**Manuales** (dependen de GitHub/PyPI reales; no se pueden probar desde el sandbox):
+
+- [ ] **15.11 Datos y comunidad con tu cuenta**
+  ```powershell
+  $env:GITHUB_TOKEN = "github_pat_xxx"
+  uv run github-pages-auditor -u alberto2005-coder --details --sort stars -f json -o - -q | ConvertFrom-Json | Select-Object -Expand repos | Select-Object -First 5 name,stars,language,license,latest_release
+  uv run github-pages-auditor -u alberto2005-coder --fail-on community -q; echo $LASTEXITCODE
+  ```
+  Esperado: estrellas/lenguaje/licencia rellenos; código 1 si algún repo no tiene SECURITY/CONTRIBUTING/etc.
+  **Resultado:**
+
+- [ ] **15.12 Pages reales: TLS, 404 y SEO**
+  ```powershell
+  uv run github-pages-auditor -u alberto2005-coder -f json -o - -q | ConvertFrom-Json | Select-Object -Expand repos | Where-Object pages | Select-Object name,@{n="tls";e={$_.pages.tls_days_left}},@{n="avisos";e={$_.pages.warnings -join ","}}
+  ```
+  Esperado: `tls_days_left` con un número en tus dominios propios; avisos coherentes con lo que ves en tus webs.
+  **Resultado:**
+
+- [ ] **15.13 Modo web (sin token) sigue funcionando y trae la última release**
+  ```powershell
+  Remove-Item Env:GITHUB_TOKEN; uv run github-pages-auditor -u alberto2005-coder --no-env --details -q
+  ```
+  Esperado: informe completo; columnas de datos de API vacías, sin errores.
+  **Resultado:**
+
+- [ ] **15.14 Baseline real**
+  ```powershell
+  uv run github-pages-auditor -u alberto2005-coder -f json -o base.json -q
+  uv run github-pages-auditor -u alberto2005-coder --baseline base.json --fail-on all -q; echo $LASTEXITCODE
+  ```
+  Esperado: código `0` (nada nuevo).
+  **Resultado:**
+
+- [ ] **15.15 Config TOML real**: crea `.github-pages-auditor.toml` con `user = "alberto2005-coder"` y `sort = "name"` y ejecuta `uv run github-pages-auditor -q`. Esperado: audita sin `-u`. Con `token = "x"` dentro: error y salida 2.
+  **Resultado:**
+
+- [ ] **15.16 CI de la 1.3.0** (tras el push): matriz 9/9 verde, job `lint` verde y job `self-audit` verde (si falla por `missing-*`, falta algún archivo de comunidad detectado por la API).
+  **Resultado:**
+
+- [ ] **15.17 Action reutilizable**: en un repo de pruebas, un workflow con `uses: alberto2005-coder/github-pages-auditor@v1.3.0` (`user`, `token: ${{ secrets.GITHUB_TOKEN }}`, `fail-on: any`). Esperado: anotaciones en el log y job verde/rojo según hallazgos.
+  **Resultado:**
+
+- [ ] **15.18 Publicación de la 1.3.0** (tras la release `v1.3.0`)
+  ```powershell
+  cd $env:TEMP
+  uvx github-pages-auditor@1.3.0 -V
+  ```
+  **Resultado:**
+
 ---
 
 ## Resumen final
@@ -532,6 +596,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 | 12. CI | 0 | 0 | 0/2 hechas; el resto, pendiente u opcional |
 | 13. Documentación | 1 | 0 | 1/3 hechas; el resto, pendiente u opcional |
 | 14. Novedades 1.2.1 | 8 | 0 | 8/11 hechas; el resto, pendiente u opcional |
+| 15. Novedades 1.3.0 | 10 | 0 | 10/18 hechas (auto); 15.11-15.18 manuales pendientes |
 
 **Bugs encontrados** (comando, resultado obtenido, resultado esperado):
 
@@ -539,4 +604,4 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 2. `-f json -o -` con UnicodeEncodeError en Windows (cp1252) → corregido (JSON ASCII por stdout, UTF-8 en el resto).
 3. Nota: un token revocado definido en `$env:GITHUB_TOKEN` hace que el modo por defecto dé 401 (comportamiento correcto).
 
-**¿Listo para publicar la 1.2.1?** [x] Sí [ ] No — publicada el 2026-11-14 (PyPI 1.2.1 verificada). Solo queda tu vistazo al CI (14.7) y las pruebas opcionales.
+**¿Listo para publicar la 1.3.0?** [ ] Sí [ ] No — pendiente de tus pruebas manuales 15.11-15.15 y del CI (15.16). La 1.2.1 ya está publicada y verificada.

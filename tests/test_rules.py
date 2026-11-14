@@ -1,7 +1,7 @@
 import pytest
 
 from github_pages_auditor.models import PagesHealth, RepoInfo
-from github_pages_auditor.rules import TODAS, disparadas, evaluar, parsear_fail_on
+from github_pages_auditor.rules import BASICAS, COMUNIDAD, TODAS, disparadas, evaluar, parsear_fail_on
 
 BUENO = RepoInfo("bueno", tiene_readme=True, tiene_licencia=True, tiene_gitignore=True, tiene_descripcion=True)
 POBRE = RepoInfo("pobre", tiene_descripcion=False)
@@ -13,7 +13,9 @@ FALLO = RepoInfo("fallo", error="timeout")
 
 def test_parsear_fail_on():
     assert parsear_fail_on("missing-license, BROKEN-PAGES") == ("missing-license", "broken-pages")
-    assert parsear_fail_on("any") == TODAS
+    assert parsear_fail_on("any") == BASICAS  # como en 1.2: no incluye las reglas de comunidad
+    assert parsear_fail_on("community") == COMUNIDAD
+    assert parsear_fail_on("all") == TODAS
     assert parsear_fail_on("missing-readme,missing-readme") == ("missing-readme",)
     assert parsear_fail_on("") == ()
 

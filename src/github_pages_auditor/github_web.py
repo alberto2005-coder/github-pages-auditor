@@ -3,16 +3,16 @@
 Es un modo de "mejor esfuerzo": depende del marcado público de GitHub, que puede
 cambiar. Para resultados más fiables usa la API con token.
 """
+import html as _html
 import re
 from typing import Any, Dict, List, Optional
 
 import requests
 
-import html as _html
-
 from . import pages, pages_health
 from .errors import ErrorAuditoria, LimiteDeTasa, UsuarioNoEncontrado
 from .models import RepoInfo
+from .releases import parsear_ultima_release
 
 URL = "https://github.com"
 RAW = "https://raw.githubusercontent.com"
@@ -101,6 +101,8 @@ class GitHubWebProvider:
     def enriquecer_repo(self, repo: RepoInfo) -> RepoInfo:
         atom = self.session.get(f"{URL}/{self.usuario}/{repo.nombre}/releases.atom")
         repo.tiene_releases = atom.status_code == 200 and "<entry>" in atom.text
+        if repo.tiene_releases:
+            repo.ultima_release, repo.fecha_release = parsear_ultima_release(atom.text)
 
         raw = f"{RAW}/{self.usuario}/{repo.nombre}/HEAD/"
         repo.tiene_readme = any(self._existe(raw + f) for f in CANDIDATOS_README)
@@ -112,5 +114,7 @@ class GitHubWebProvider:
         salud = pages_health.inspeccionar(self.session, url, esperada=False)
         repo.tiene_pages = salud.ok
         repo.url_pages = salud.url_final if salud.ok else None
+        if salud.ok:
+            pages_health.profundizar(self.session, salud)
         repo.pages_salud = salud if salud.ok else None
         return repo

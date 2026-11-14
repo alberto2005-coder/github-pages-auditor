@@ -6,11 +6,27 @@ import requests
 from . import pages, pages_health
 from .errors import ErrorAuditoria, LimiteDeTasa, TokenInvalido, UsuarioNoEncontrado
 from .models import ESTADO_ROTA, RepoInfo
+from .releases import parsear_ultima_release
 
 API = "https://api.github.com"
 POR_PAGINA = 100
 MAX_PAGINAS = 100
 PREFIJOS_LICENCIA = ("license", "licence", "copying")
+# atributo de RepoInfo -> (nombre base del fichero, carpetas donde GitHub también lo reconoce)
+FICHEROS_COMUNIDAD = {
+    "tiene_security": ("security", (".github", "docs")),
+    "tiene_contributing": ("contributing", (".github", "docs")),
+    "tiene_code_of_conduct": ("code_of_conduct", (".github", "docs")),
+    "tiene_issue_template": ("issue_template", (".github",)),
+}
+
+
+def _misma_url(a: str, b: str) -> bool:
+    """Compara dos URL ignorando esquema, ``www.``, mayúsculas y barra final."""
+    def norm(u: str) -> str:
+        u = u.strip().lower().split("://", 1)[-1]
+        return u[4:] if u.startswith("www.") else u
+    return norm(a).rstrip("/") == norm(b).rstrip("/")
 
 
 class GitHubAPIProvider:
@@ -52,6 +68,7 @@ class GitHubAPIProvider:
                 if not nombre:
                     continue
                 tiene_pages = bool(raw.get("has_pages", False))
+                licencia = raw.get("license")
                 repos.append(RepoInfo(
                     nombre=nombre,
                     tiene_pages=tiene_pages,
@@ -61,28 +78,66 @@ class GitHubAPIProvider:
                     descripcion=(raw.get("description") or "").strip() or None,
                     es_fork=bool(raw.get("fork", False)),
                     esta_archivado=bool(raw.get("archived", False)),
+                    estrellas=raw.get("stargazers_count"),
+                    forks_count=raw.get("forks_count"),
+                    issues_abiertas=raw.get("open_issues_count"),
+                    lenguaje=raw.get("language"),
+                    topics=list(raw.get("topics") or []) if "topics" in raw else None,
+                    licencia_spdx=licencia.get("spdx_id") if isinstance(licencia, dict) else None,
+                    creado=raw.get("created_at"),
+                    ultimo_push=raw.get("pushed_at"),
+                    homepage=(raw.get("homepage") or "").strip() if "homepage" in raw else None,
                 ))
             if len(data) < POR_PAGINA:
                 break
         return repos
 
-    def _archivos_raiz(self, nombre: str) -> List[str]:
-        res = self._get(f"/repos/{self.usuario}/{nombre}/contents/")
-        if res.status_code != 200:  # 404 = repositorio vacío
+    def _nombres(self, nombre: str, carpeta: str = "") -> List[str]:
+        res = self._get(f"/repos/{self.usuario}/{nombre}/contents/{carpeta}")
+        if res.status_code != 200:  # 404 = repositorio vacío o carpeta inexistente
             return []
         datos = res.json()
         return [f.get("name", "").lower() for f in datos] if isinstance(datos, list) else []
+
+    def _archivos_raiz(self, nombre: str) -> List[str]:
+        return self._nombres(nombre)
+
+    def _comunidad(self, repo: RepoInfo, raiz: List[str]) -> None:
+        """SECURITY, CONTRIBUTING, CODE_OF_CONDUCT e issue templates: raíz, ``.github/`` o ``docs/``.
+
+        Solo se pide el contenido de ``.github``/``docs`` si existe y aún falta algún fichero.
+        """
+        contenidos = {"": set(raiz)}
+
+        def en(carpeta: str) -> set:
+            if carpeta not in contenidos:
+                contenidos[carpeta] = set(self._nombres(repo.nombre, carpeta)) if carpeta in raiz else set()
+            return contenidos[carpeta]
+
+        def coincide(nombres: set, base: str) -> bool:
+            return any(n == base or n.startswith(base + ".") for n in nombres)
+
+        for atributo, (base, carpetas) in FICHEROS_COMUNIDAD.items():
+            encontrado = coincide(contenidos[""], base)
+            for carpeta in carpetas:
+                if encontrado:
+                    break
+                encontrado = coincide(en(carpeta), base)
+            setattr(repo, atributo, encontrado)
 
     def enriquecer_repo(self, repo: RepoInfo) -> RepoInfo:
         # Releases vía feed Atom: no consume cuota de la API.
         atom = self.session.get(f"https://github.com/{self.usuario}/{repo.nombre}/releases.atom")
         repo.tiene_releases = atom.status_code == 200 and "<entry>" in atom.text
+        if repo.tiene_releases:
+            repo.ultima_release, repo.fecha_release = parsear_ultima_release(atom.text)
 
         # README, LICENSE y .gitignore con una sola llamada al contenido raíz.
         archivos = self._archivos_raiz(repo.nombre)
         repo.tiene_readme = any(n.startswith("readme") for n in archivos)
         repo.tiene_gitignore = ".gitignore" in archivos
         repo.tiene_licencia = repo.tiene_licencia or any(n.startswith(PREFIJOS_LICENCIA) for n in archivos)
+        self._comunidad(repo, archivos)
 
         if repo.tiene_pages:
             self._comprobar_pages(repo)
@@ -118,5 +173,8 @@ class GitHubAPIProvider:
             salud.avisos.append("https-no-forzado")
         if salud.problemas:
             salud.estado = ESTADO_ROTA
+        pages_health.profundizar(self.session, salud)
         repo.pages_salud = salud
         repo.url_pages = salud.url_final or url
+        if repo.homepage and repo.url_pages and not _misma_url(repo.homepage, repo.url_pages):
+            salud.avisos.append("homepage-distinta")

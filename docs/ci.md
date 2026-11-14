@@ -48,7 +48,28 @@ jobs:
           git diff --quiet || (git commit -am "docs: actualizar demos" && git push)
 ```
 
-## 4. Token / Token
+## 4. Action reutilizable / Reusable Action
+
+```yaml
+- uses: alberto2005-coder/github-pages-auditor@v1.3.0
+  with:
+    user: ${{ github.repository_owner }}
+    token: ${{ secrets.GITHUB_TOKEN }}
+    fail-on: missing-license,broken-pages
+```
+
+Escribe anotaciones (`-f github`) y falla el job si se dispara una regla. / Writes annotations and fails the job when a rule triggers.
+
+## 5. Solo hallazgos nuevos / Only new findings
+
+Guarda el informe de la ejecución buena y compara con `--baseline` / keep the last good report and compare:
+
+```bash
+uvx github-pages-auditor -u USER -f json -o baseline.json -q          # una vez / once
+uvx github-pages-auditor -u USER --baseline baseline.json --fail-on all -f github -q
+```
+
+## 6. Token / Token
 
 En Actions `secrets.GITHUB_TOKEN` basta. Fuera de Actions, un token *fine-grained* sin permisos (solo repos públicos) es suficiente;
 pásalo por la variable `GITHUB_TOKEN`, no con `-k`, para que no quede en el historial.

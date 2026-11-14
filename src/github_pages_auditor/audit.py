@@ -1,4 +1,6 @@
+import fnmatch
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Sequence
 
 import requests
 from rich.console import Console
@@ -10,6 +12,22 @@ from .github_api import GitHubAPIProvider
 from .github_web import GitHubWebProvider
 from .http import crear_sesion_http
 from .models import AuditReport, RepoInfo
+
+
+def _coincide(nombre: str, patrones: Sequence[str]) -> bool:
+    return any(fnmatch.fnmatchcase(nombre.lower(), p.lower()) for p in patrones)
+
+
+def ordenar(repos: List[RepoInfo], criterio: str) -> List[RepoInfo]:
+    """``listing`` conserva el orden de GitHub; el resto es estable y desempata por nombre."""
+    if criterio == "listing":
+        return list(repos)
+    por_nombre = sorted(repos, key=lambda r: r.nombre.lower())
+    if criterio == "stars":
+        return sorted(por_nombre, key=lambda r: r.estrellas if r.estrellas is not None else -1, reverse=True)
+    if criterio == "updated":
+        return sorted(por_nombre, key=lambda r: r.ultimo_push or "", reverse=True)
+    return por_nombre
 
 
 def crear_proveedor(config: Config, session):
@@ -47,6 +65,8 @@ def ejecutar_auditoria(config: Config, session=None, console: Console = None) ->
     repos_base = [
         r for r in repos_base
         if not (config.excluir_forks and r.es_fork) and not (config.excluir_archivados and r.esta_archivado)
+        and (not config.solo or _coincide(r.nombre, config.solo))
+        and not _coincide(r.nombre, config.ignorar)
     ]
     informe = AuditReport(usuario=config.usuario, dominio_base=config.dominio_web, proveedor=nombre_proveedor,
                           modo="api" if config.usa_api else "web")
@@ -75,5 +95,5 @@ def ejecutar_auditoria(config: Config, session=None, console: Console = None) ->
                 executor.shutdown(wait=False, cancel_futures=True)
                 raise
 
-    informe.repos = resultados  # mismo orden que el listado: informe determinista
+    informe.repos = ordenar(resultados, config.orden)  # por defecto, el orden del listado: informe determinista
     return informe

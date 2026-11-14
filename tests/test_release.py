@@ -73,3 +73,21 @@ def test_la_documentacion_del_json_cubre_todos_los_campos():
     faltan = [k for k in claves if f"`{k}`" not in doc]
     assert not faltan, f"docs/json-schema.md no documenta: {faltan}"
     assert f"`schema_version: {datos['schema_version']}`" in doc
+
+
+def test_action_y_archivos_de_comunidad_existen():
+    for ruta in ("action.yml", "SECURITY.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", ".github/ISSUE_TEMPLATE/bug_report.md"):
+        assert (RAIZ / ruta).exists(), ruta
+
+
+def test_cada_opcion_de_la_cli_esta_en_el_readme():
+    from github_pages_auditor.config import crear_parser
+    readme = leer("README.md")
+    opciones = {o for a in crear_parser()._actions for o in a.option_strings if o.startswith("--")}
+    assert not [o for o in opciones if f"`{o}`" not in readme]
+
+
+def test_cada_regla_esta_documentada_en_el_json_y_el_readme():
+    from github_pages_auditor.rules import TODAS
+    doc, readme = leer("docs/json-schema.md"), leer("README.md")
+    assert not [r for r in TODAS if f"`{r}`" not in doc or f"`{r}`" not in readme]

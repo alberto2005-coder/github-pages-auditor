@@ -3,24 +3,28 @@ import sys
 
 from rich.console import Console
 
+from . import baseline as base
 from . import creditos
 from .audit import ejecutar_auditoria
 from .config import Config, parse_args
 from .errors import ErrorAuditoria
-from .formatters import a_json, bloque_markdown, inyectar
+from .formatters import a_github, a_json, bloque_markdown, inyectar
 from .report import generar_txt, renderizar_consola
 from .rules import disparadas, evaluar
 
 EXIT_OK, EXIT_HALLAZGOS, EXIT_ERROR, EXIT_SIN_REPOS, EXIT_CTRL_C = 0, 1, 2, 3, 130
 
 
-def _contenido(config: Config, reporte, hallazgos, activadas) -> str:
+def _contenido(config: Config, reporte, hallazgos, activadas, info_baseline=None) -> str:
+    if config.formato == "github":
+        return a_github(reporte, hallazgos, config.fail_on)
     if config.formato == "json":
         # En stdout, JSON solo ASCII: sobrevive a cualquier codificación de consola (p. ej. cp1252 en Windows).
-        return a_json(reporte, hallazgos, config.fail_on, activadas, solo_ascii=config.salida_estandar)
+        return a_json(reporte, hallazgos, config.fail_on, activadas, solo_ascii=config.salida_estandar,
+                      baseline=info_baseline)
     if config.formato == "md":
-        return bloque_markdown(reporte)
-    return generar_txt(reporte)
+        return bloque_markdown(reporte, detalles=config.details)
+    return generar_txt(reporte, hallazgos, config.details)
 
 
 def _escribir_stdout(texto: str) -> None:
@@ -53,6 +57,14 @@ def main(args=None) -> int:
         err.print(f"[bold red]❌ No existe el archivo para --inject: '{config.inject}'[/bold red]")
         return EXIT_ERROR
 
+    previo = None
+    if config.baseline:  # se valida antes de auditar, como --inject
+        try:
+            previo = base.cargar(config.baseline)
+        except ErrorAuditoria as e:
+            err.print(f"[bold red]❌ {e}[/bold red]")
+            return EXIT_ERROR
+
     try:
         reporte = ejecutar_auditoria(config, console=console)
     except ErrorAuditoria as e:
@@ -66,13 +78,19 @@ def main(args=None) -> int:
         err.print("[bold red]❌ No hay repositorios que analizar (usuario sin repos públicos o todos filtrados).[/bold red]")
         return EXIT_SIN_REPOS
 
-    hallazgos = evaluar(reporte.repos)
-    activadas = disparadas(hallazgos, config.fail_on)
+    hallazgos = evaluar(reporte.repos, stale_meses=config.stale_meses)
+    info_baseline = None
+    if previo is not None:
+        nuevos = base.nuevos(hallazgos, previo)
+        info_baseline = {"file": config.baseline, "new_findings": {k: v for k, v in nuevos.items() if v}}
+        activadas = disparadas(nuevos, config.fail_on)
+    else:
+        activadas = disparadas(hallazgos, config.fail_on)
 
-    renderizar_consola(reporte, console=console)
+    renderizar_consola(reporte, console=console, hallazgos=hallazgos, detalles=config.details)
     try:
         if config.archivo_salida:
-            contenido = _contenido(config, reporte, hallazgos, activadas)
+            contenido = _contenido(config, reporte, hallazgos, activadas, info_baseline)
             if config.salida_estandar:
                 _escribir_stdout(contenido)
             else:
@@ -82,7 +100,7 @@ def main(args=None) -> int:
         if config.inject:
             with open(config.inject, encoding="utf-8") as f:
                 original = f.read()
-            nuevo = inyectar(original, bloque_markdown(reporte, incluir_forks=False))
+            nuevo = inyectar(original, bloque_markdown(reporte, incluir_forks=False, detalles=config.details))
             with open(config.inject, "w", encoding="utf-8") as f:
                 f.write(nuevo)
             console.print(f"[bold green]✅ Tabla de demos actualizada en '[white]{config.inject}[/white]'[/bold green]")

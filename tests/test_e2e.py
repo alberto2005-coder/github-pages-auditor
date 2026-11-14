@@ -8,9 +8,7 @@ import time
 import pytest
 import requests
 from conftest import FakeResponse as R
-from conftest import FakeSession
 
-from github_pages_auditor import audit
 from github_pages_auditor import main as cli
 from github_pages_auditor.github_api import API
 
@@ -54,16 +52,6 @@ def github_falso(repos=REPOS, web=None, pages_extra=None, fallo=None, retardo=No
         return R(404) if "/roto/" in url else R(200)
 
     return h
-
-
-@pytest.fixture
-def instalar(monkeypatch):
-    """instalar(handler) -> FakeSession usada por la auditoría."""
-    def _instalar(handler):
-        sesion = FakeSession(handler)
-        monkeypatch.setattr(audit, "crear_sesion_http", lambda **kw: sesion)
-        return sesion
-    return _instalar
 
 
 def ejecutar(tmp_path, *args, fmt="json"):

@@ -2,6 +2,16 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). / Format based on Keep a Changelog.
 
+## [1.3.0] - 2026-11-14
+
+### Añadido / Added
+- **Datos por repo** (modo API; la release también en modo web): estrellas, forks, issues abiertas, lenguaje, topics, licencia SPDX, fechas, Website y última release. Nuevos campos del JSON (`schema_version` sigue en 1; solo se añaden campos). `--details` los muestra en consola, `txt` y `md`; `--sort listing|name|stars|updated`. / Per-repo data, additive JSON fields, `--details`, `--sort`.
+- **Reglas de comunidad** para `--fail-on`: `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` (`--stale-months`, def. 12). Grupos `community` y `all`; `any` mantiene su significado anterior. / Community rules and groups.
+- **Pages en profundidad:** aviso si el certificado TLS caduca en menos de 14 días (`pages.tls_days_left`), sin `404.html`, sin meta description, sin `og:image` y Website distinto de la demo. Solo avisos: no rompen el informe. / Deeper Pages checks (warnings only).
+- **Configuración:** archivo `.github-pages-auditor.toml` (`--config`, `--no-config`; nunca admite el token), `--ignore`, `--only` (patrones `*`/`?`), `--baseline INFORME.json` (`--fail-on` solo por hallazgos nuevos) y `-f github` (anotaciones de GitHub Actions). / Config file, filters, baseline, Actions annotations.
+- `action.yml`: Action reutilizable. `ruff` en CI y job que audita el propio repositorio. SECURITY, CONTRIBUTING, CODE_OF_CONDUCT y plantillas de issues. / Reusable Action, ruff, self-audit, community files.
+- Dependencia `tomli` solo en Python 3.10. / `tomli` only on Python 3.10.
+
 ## [1.2.1] - 2026-11-13
 
 ### Añadido / Added

@@ -4,9 +4,11 @@ from rich.table import Table
 
 from . import __version__, creditos
 from .models import AuditReport
+from .rules import COMUNIDAD, REGLAS
 
 
-def renderizar_consola(report: AuditReport, sin_color: bool = False, console: Console = None):
+def renderizar_consola(report: AuditReport, sin_color: bool = False, console: Console = None,
+                       hallazgos=None, detalles: bool = False):
     console = console or Console(no_color=sin_color)
 
     console.print(Panel.fit(
@@ -23,6 +25,15 @@ def renderizar_consola(report: AuditReport, sin_color: bool = False, console: Co
     for r in report.con_pages:
         t_pages.add_row(r.nombre, r.url_pages or "")
     console.print(t_pages)
+
+    if detalles:
+        t_det = Table(title="📊 Detalles por repositorio", style="cyan", header_style="bold magenta")
+        for col in ("Repositorio", "★", "Lenguaje", "Licencia", "Último push", "Release"):
+            t_det.add_column(col, justify="right" if col == "★" else "left")
+        for r in report.repos:
+            t_det.add_row(r.nombre, "" if r.estrellas is None else str(r.estrellas), r.lenguaje or "",
+                          r.licencia_spdx or "", (r.ultimo_push or "")[:10], r.ultima_release or "")
+        console.print(t_det)
 
     t = Table(title="🛡️ Resumen de Auditoría", style="green", header_style="bold yellow")
     t.add_column("Métrica / Categoría", style="bold white")
@@ -44,6 +55,10 @@ def renderizar_consola(report: AuditReport, sin_color: bool = False, console: Co
         t.add_row("Pages rotas", str(len(report.pages_rotas)), badge(report.pages_rotas, "rotas"))
     if report.pages_con_avisos:
         t.add_row("Pages con avisos", str(len(report.pages_con_avisos)), badge(report.pages_con_avisos, "avisos"))
+    for regla in COMUNIDAD:
+        repos = (hallazgos or {}).get(regla)
+        if repos:
+            t.add_row(REGLAS[regla][0], str(len(repos)), f"[bold red]⚠️ {len(repos)} repos[/bold red]")
     t.add_row("Forks", str(len(report.forks)), "[dim]Externos[/dim]")
     t.add_row("Archivados", str(len(report.archivados)), "[dim]Solo lectura[/dim]")
     if report.con_error:
@@ -55,7 +70,7 @@ def _seccion(titulo, nombres):
     return ["", f"=== {titulo} ===", *([f"- {n}" for n in nombres] or ["Ninguno"])]
 
 
-def generar_txt(report: AuditReport) -> str:
+def generar_txt(report: AuditReport, hallazgos=None, detalles: bool = False) -> str:
     lineas = [
         f"=== ENLACES DE GITHUB PAGES PARA: {report.usuario} ===",
         f"Dominio base: {report.dominio_base}",
@@ -78,6 +93,14 @@ def generar_txt(report: AuditReport) -> str:
     if report.pages_con_avisos:
         lineas += _seccion("GITHUB PAGES CON AVISOS", [
             f"{r.nombre}: {', '.join(r.pages_salud.avisos)}" for r in report.pages_con_avisos])
+    for regla in COMUNIDAD:
+        if (hallazgos or {}).get(regla):
+            lineas += _seccion(REGLAS[regla][0].upper(), hallazgos[regla])
+    if detalles:
+        lineas += _seccion("DETALLES POR REPOSITORIO", [
+            f"{r.nombre}: stars={r.estrellas if r.estrellas is not None else '?'} "
+            f"lang={r.lenguaje or '-'} license={r.licencia_spdx or '-'} "
+            f"pushed={(r.ultimo_push or '-')[:10]} release={r.ultima_release or '-'}" for r in report.repos])
     if report.con_error:
         lineas += _seccion("REPOSITORIOS NO ANALIZADOS (ERROR DE RED)", [f"{r.nombre}: {r.error}" for r in report.con_error])
     lineas += ["", "-" * 60, f"Generado con github-pages-auditor v{__version__}", creditos(sep="\n")]
