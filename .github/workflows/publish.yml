@@ -45,4 +45,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
-      - run: uv publish --trusted-publishing always
+      # Con Trusted Publishing esta acción genera y sube las atestaciones (procedencia) de los paquetes.
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true

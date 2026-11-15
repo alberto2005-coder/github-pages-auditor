@@ -1,7 +1,9 @@
 """Configuración: parámetros de consola > variables de entorno (.env opcional) > defecto."""
 import argparse
 import os
+import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 
 from dotenv import find_dotenv, load_dotenv
@@ -17,7 +19,8 @@ from .rules import COMUNIDAD, STALE_MESES_DEFECTO, TODAS, parsear_fail_on
 SALIDA_BASE = "paginas_github"
 WORKERS_DEFECTO = 15
 TIMEOUT_DEFECTO = 10.0
-FORMATOS = ("txt", "json", "md", "github")
+FORMATOS = ("txt", "json", "md", "github", "html", "csv", "sarif", "badge")
+IDIOMAS = ("es", "en")
 ORDENES = ("listing", "name", "stars", "updated")
 ARCHIVO_CONFIG = ".github-pages-auditor.toml"
 
@@ -44,6 +47,23 @@ class Config:
     solo: Tuple[str, ...] = ()
     stale_meses: int = STALE_MESES_DEFECTO
     baseline: Optional[str] = None
+    # 1.4.0
+    org: Optional[str] = None
+    incluir_privados: bool = False
+    deep: bool = False
+    check_links: bool = False
+    min_score: Optional[int] = None
+    history: Optional[str] = None
+    lang: str = "es"
+    webhook: Optional[str] = None
+    fix: bool = False
+    fix_pages: bool = False
+    fix_metadata: bool = False
+    dry_run: bool = False
+    yes: bool = False
+    tui: bool = False
+    cache: Optional[str] = None
+    since: Optional[str] = None
 
     @property
     def usa_api(self) -> bool:
@@ -80,13 +100,16 @@ class ErrorConfig(ValueError):
 
 
 # clave del archivo .toml -> (destino en el parser, tipo esperado)
-CLAVES_ARCHIVO = {
+CLAVES_ARCHIVO: Dict[str, Tuple[str, Any]] = {
     "user": ("usuario", str), "web": ("dominio_web", str), "output": ("archivo_salida", str),
     "format": ("formato", str), "fail_on": ("fail_on", "lista"), "exclude_forks": ("excluir_forks", bool),
     "exclude_archived": ("excluir_archivados", bool), "ignore": ("ignorar", "lista"), "only": ("solo", "lista"),
     "stale_months": ("stale_meses", int), "workers": ("max_workers", int), "timeout": ("timeout", float),
     "details": ("details", bool), "sort": ("orden", str), "no_api": ("forzar_web", bool),
     "quiet": ("quiet", bool), "no_color": ("sin_color", bool), "baseline": ("baseline", str),
+    "org": ("org", str), "include_private": ("incluir_privados", bool), "deep": ("deep", bool),
+    "check_links": ("check_links", bool), "min_score": ("min_score", int), "history": ("history", str),
+    "lang": ("lang", str), "cache": ("cache", str), "since": ("since", str),
 }
 
 
@@ -100,10 +123,10 @@ def cargar_archivo_config(ruta: str) -> Dict[str, Any]:
     except tomllib.TOMLDecodeError as e:
         raise ErrorConfig(f"TOML no válido: {e}") from e
 
-    for prohibida in ("token", "github_token", "key"):
+    for prohibida in ("token", "github_token", "key", "webhook", "notify_webhook"):
         if prohibida in datos:
-            raise ErrorConfig("no pongas el token en el archivo de configuración; "
-                              "usa la variable de entorno GITHUB_TOKEN")
+            raise ErrorConfig("no pongas secretos (token, webhook) en el archivo de configuración; "
+                              "usa las variables de entorno GITHUB_TOKEN y NOTIFY_WEBHOOK")
     desconocidas = [k for k in datos if k not in CLAVES_ARCHIVO]
     if desconocidas:
         raise ErrorConfig(f"claves desconocidas: {', '.join(desconocidas)}. Válidas: {', '.join(CLAVES_ARCHIVO)}")
@@ -127,13 +150,30 @@ def cargar_archivo_config(ruta: str) -> Dict[str, Any]:
         correcto = (isinstance(valor, (int, float)) and not isinstance(valor, bool)) if tipo is float \
             else isinstance(valor, tipo) and (tipo is bool or not isinstance(valor, bool))
         if not correcto:
-            raise ErrorConfig(f"'{clave}' debe ser de tipo {tipo.__name__}")
+            raise ErrorConfig(f"'{clave}' debe ser de tipo {getattr(tipo, '__name__', tipo)}")
         valores[destino] = float(valor) if tipo is float else valor
     if valores.get("formato", "txt") not in FORMATOS:
         raise ErrorConfig(f"'format' debe ser uno de: {', '.join(FORMATOS)}")
     if valores.get("orden", "listing") not in ORDENES:
         raise ErrorConfig(f"'sort' debe ser uno de: {', '.join(ORDENES)}")
+    if valores.get("lang", "es") not in IDIOMAS:
+        raise ErrorConfig(f"'lang' debe ser uno de: {', '.join(IDIOMAS)}")
     return valores
+
+
+def parsear_since(texto: str, ahora: Optional[datetime] = None) -> datetime:
+    """``30d``, ``12w``, ``6m``, ``1y`` (hacia atrás desde ahora) o una fecha ISO (``2026-01-31``)."""
+    ahora = ahora or datetime.now(timezone.utc)
+    t = texto.strip().lower()
+    m = re.fullmatch(r"(\d+)([dwmy])", t)
+    if m:
+        dias = int(m.group(1)) * {"d": 1, "w": 7, "m": 30.44, "y": 365.25}[m.group(2)]
+        return ahora - timedelta(days=dias)
+    try:
+        d = datetime.fromisoformat(t)
+    except ValueError as e:
+        raise ValueError(f"'{texto}' no es válido: usa 30d, 12w, 6m, 1y o una fecha como 2026-01-31") from e
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
 def crear_parser(archivo: Optional[Dict[str, Any]] = None) -> argparse.ArgumentParser:
@@ -165,8 +205,9 @@ def crear_parser(archivo: Optional[Dict[str, Any]] = None) -> argparse.ArgumentP
                              "en la salida estándar (la interfaz pasa a stderr).")
     parser.add_argument("-f", "--format", dest="formato", choices=FORMATOS, default="txt",
                         help="Formato del informe: txt (por defecto), json (contrato versionado), md "
-                             "(tabla de demos en vivo para tu README) o github (anotaciones ::warning:: "
-                             "para GitHub Actions; sale por stdout).")
+                             "(tabla de demos en vivo para tu README), github (anotaciones ::warning:: "
+                             "para GitHub Actions; sale por stdout), html (página autocontenida), csv, "
+                             "sarif (pestaña de seguridad de GitHub) o badge (insignia SVG con la nota).")
     parser.add_argument("--fail-on", dest="fail_on", type=_fail_on, default=(), metavar="REGLAS",
                         help="Sale con código 1 si hay hallazgos en estas reglas (separadas por comas): "
                              f"{', '.join(TODAS)}. Grupos: 'any' (las reglas básicas de siempre), "
@@ -191,6 +232,42 @@ def crear_parser(archivo: Optional[Dict[str, Any]] = None) -> argparse.ArgumentP
                         help=f"Meses sin push para la regla stale-repo (por defecto {STALE_MESES_DEFECTO}).")
     parser.add_argument("--baseline", dest="baseline", metavar="INFORME.json",
                         help="Informe JSON anterior: --fail-on solo se dispara por hallazgos NUEVOS respecto a él.")
+    parser.add_argument("--min-score", dest="min_score", type=int, metavar="N",
+                        help="Sale con código 1 si la nota global (0-100) es menor que N.")
+    parser.add_argument("--history", dest="history", metavar="CARPETA",
+                        help="Guarda cada informe JSON en CARPETA y lo compara con el anterior.")
+    parser.add_argument("--lang", dest="lang", choices=IDIOMAS, default="es",
+                        help="Idioma de la consola y los informes: es (por defecto) o en.")
+    parser.add_argument("--notify-webhook", dest="webhook", default=env("NOTIFY_WEBHOOK"), metavar="URL",
+                        help="Avisa a un webhook (Discord, Slack o JSON genérico) si hay hallazgos nuevos. "
+                             "Más seguro: variable NOTIFY_WEBHOOK (la URL es un secreto).")
+    parser.add_argument("--deep", dest="deep", action="store_true",
+                        help="Con token: seguridad (Dependabot, secret scanning, rama protegida), CI, "
+                             "contribuidores y PRs abiertas. Hace más peticiones por repo.")
+    parser.add_argument("--org", dest="org", metavar="ORG",
+                        help="Audita los repos de una organización en lugar de los de un usuario.")
+    parser.add_argument("--include-private", dest="incluir_privados", action="store_true",
+                        help="Con token: incluye también tus repos privados (los del usuario del token).")
+    parser.add_argument("--check-links", dest="check_links", action="store_true",
+                        help="Comprueba los enlaces de la portada de cada web (máx. 50 por sitio).")
+    parser.add_argument("--fix", dest="fix", action="store_true",
+                        help="Crea SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md y la plantilla de issues que "
+                             "falten. Necesita token con permiso de escritura. Sin --yes solo muestra el plan.")
+    parser.add_argument("--fix-pages", dest="fix_pages", action="store_true",
+                        help="Activa 'Enforce HTTPS' en las Pages que lo tienen desactivado.")
+    parser.add_argument("--fix-metadata", dest="fix_metadata", action="store_true",
+                        help="Propone descripción y topics a partir del README y el lenguaje.")
+    parser.add_argument("--dry-run", dest="dry_run", action="store_true",
+                        help="Con --fix*: muestra lo que haría sin escribir nada (es el comportamiento por defecto).")
+    parser.add_argument("--yes", dest="yes", action="store_true",
+                        help="Con --fix*: aplica los cambios en GitHub.")
+    parser.add_argument("--tui", dest="tui", action="store_true",
+                        help="Explora los resultados en una interfaz interactiva (extra opcional: pip install "
+                             "'github-pages-auditor[tui]').")
+    parser.add_argument("--cache", dest="cache", metavar="CARPETA",
+                        help="Caché con ETag para las peticiones a la API: una respuesta 304 no gasta cuota.")
+    parser.add_argument("--since", dest="since", metavar="PLAZO",
+                        help="Audita solo repos con push reciente: 30d, 12w, 6m, 1y o una fecha (2026-01-31).")
     parser.add_argument("--config", dest="config", metavar="ARCHIVO",
                         help=f"Archivo de configuración TOML (por defecto ./{ARCHIVO_CONFIG} si existe).")
     parser.add_argument("--no-config", dest="no_config", action="store_true",
@@ -236,9 +313,22 @@ def parse_args(args=None) -> Config:
     parser = crear_parser(archivo)
     parsed = parser.parse_args(args)
 
+    org = (parsed.org or "").strip() or None
     usuario = (parsed.usuario or "").strip()
+    if org:
+        usuario = org
     if not usuario:
-        parser.error("El usuario de GitHub es obligatorio. Usa -u <usuario> o define USUARIO_GITHUB.")
+        parser.error("El usuario de GitHub es obligatorio. Usa -u <usuario> (o --org <organización>) "
+                     "o define USUARIO_GITHUB.")
+    if parsed.min_score is not None and not 0 <= parsed.min_score <= 100:
+        parser.error("--min-score debe estar entre 0 y 100.")
+    if parsed.since:
+        try:
+            parsear_since(parsed.since)
+        except ValueError as e:
+            parser.error(f"--since {e}")
+    if parsed.incluir_privados and org:
+        parser.error("--include-private solo sirve para repos de un usuario, no con --org.")
     if parsed.max_workers < 1:
         parser.error("--workers debe ser >= 1.")
     if parsed.timeout <= 0:
@@ -272,4 +362,20 @@ def parse_args(args=None) -> Config:
         solo=tuple(parsed.solo),
         stale_meses=parsed.stale_meses,
         baseline=parsed.baseline,
+        org=org,
+        incluir_privados=parsed.incluir_privados,
+        deep=parsed.deep,
+        check_links=parsed.check_links,
+        min_score=parsed.min_score,
+        history=parsed.history,
+        lang=parsed.lang,
+        webhook=(parsed.webhook or "").strip() or None,
+        fix=parsed.fix,
+        fix_pages=parsed.fix_pages,
+        fix_metadata=parsed.fix_metadata,
+        dry_run=parsed.dry_run,
+        yes=parsed.yes,
+        tui=parsed.tui,
+        cache=parsed.cache,
+        since=parsed.since,
     )

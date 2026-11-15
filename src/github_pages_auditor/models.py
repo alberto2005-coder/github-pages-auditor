@@ -19,6 +19,10 @@ class PagesHealth:
     problemas: List[str] = field(default_factory=list)  # errores: la página está rota
     avisos: List[str] = field(default_factory=list)     # avisos: funciona pero mejorable
     tls_dias: Optional[int] = None  # días hasta que caduca el certificado (None = no comprobado)
+    enlaces_rotos: Optional[List[str]] = None  # solo con --check-links (None = no comprobado)
+    peso_bytes: Optional[int] = None  # tamaño del HTML de la portada (Content-Length)
+    icono_en_html: Optional[bool] = field(default=None, repr=False)  # uso interno
+    cuerpo: Optional[str] = field(default=None, repr=False)  # uso interno: se descarta en profundizar()
 
     @property
     def ok(self) -> bool:
@@ -64,6 +68,18 @@ class RepoInfo:
     tiene_contributing: Optional[bool] = None
     tiene_code_of_conduct: Optional[bool] = None
     tiene_issue_template: Optional[bool] = None
+    # Datos de --deep (modo API; ``None`` = no disponible o sin permisos).
+    privado: Optional[bool] = None
+    rama_defecto: Optional[str] = None
+    tiene_ci: Optional[bool] = None            # hay workflows en .github/workflows
+    tiene_dependabot_yml: Optional[bool] = None
+    alertas_dependabot: Optional[bool] = None  # alertas de vulnerabilidades activadas
+    secret_scanning: Optional[bool] = None
+    rama_protegida: Optional[bool] = None
+    contribuidores: Optional[int] = None
+    prs_abiertas: Optional[int] = None
+    ci_estado: Optional[str] = None            # success | failure | otro
+    puntuacion: Optional[int] = None           # 0-100 (ver score.py)
 
     @property
     def pages_rota(self) -> bool:
@@ -83,6 +99,7 @@ class AuditReport:
     proveedor: str
     repos: List[RepoInfo] = field(default_factory=list)
     modo: str = "web"  # "api" | "web" (identificador estable para el JSON)
+    puntuacion: Optional[int] = None  # nota global 0-100 (ver score.py)
 
     @property
     def total_repos(self) -> int:

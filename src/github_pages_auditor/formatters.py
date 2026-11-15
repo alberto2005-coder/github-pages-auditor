@@ -6,8 +6,10 @@ from typing import Dict, List, Optional, Sequence
 
 from . import NOMBRE_PROGRAMA, URL_GITHUB, __version__
 from .errors import ErrorSalida
+from .i18n import t
 from .models import AuditReport, RepoInfo
-from .rules import REGLA_ERRORES, REGLAS
+from .rules import REGLA_ERRORES
+from .score import nota, ranking
 
 SCHEMA_VERSION = 1
 MARCA_INICIO = "<!-- github-pages-auditor:start -->"
@@ -32,6 +34,8 @@ def _repo_a_dict(r: RepoInfo) -> dict:
             "problems": s.problemas,
             "warnings": s.avisos,
             "tls_days_left": s.tls_dias,
+            "broken_links": s.enlaces_rotos,
+            "size_bytes": s.peso_bytes,
         },
         "pages_url": r.url_pages,
         "has_releases": r.tiene_releases,
@@ -56,14 +60,34 @@ def _repo_a_dict(r: RepoInfo) -> dict:
             "code_of_conduct": r.tiene_code_of_conduct,
             "issue_template": r.tiene_issue_template,
         },
+        "score": r.puntuacion,
+        "grade": nota(r.puntuacion),
+        "private": r.privado,
+        "default_branch": r.rama_defecto,
+        "deep": {
+            "ci": r.tiene_ci,
+            "ci_status": r.ci_estado,
+            "dependabot_yml": r.tiene_dependabot_yml,
+            "dependabot_alerts": r.alertas_dependabot,
+            "secret_scanning": r.secret_scanning,
+            "branch_protected": r.rama_protegida,
+            "contributors": r.contribuidores,
+            "open_prs": r.prs_abiertas,
+        },
         "error": r.error,
     }
 
 
+def _punt(r: RepoInfo) -> dict:
+    return {"name": r.nombre, "score": r.puntuacion}
+
+
 def a_dict(report: AuditReport, hallazgos: Dict[str, List[str]], fail_on: Sequence[str],
            disparadas: Sequence[str], ahora: Optional[datetime] = None,
-           baseline: Optional[dict] = None) -> dict:
+           baseline: Optional[dict] = None, historial: Optional[dict] = None,
+           arreglos: Optional[list] = None) -> dict:
     ahora = ahora or datetime.now(timezone.utc)
+    mejores, peores = ranking(report)
     return {
         "schema_version": SCHEMA_VERSION,
         "tool": {"name": NOMBRE_PROGRAMA, "version": __version__, "url": URL_GITHUB},
@@ -85,17 +109,22 @@ def a_dict(report: AuditReport, hallazgos: Dict[str, List[str]], fail_on: Sequen
             "forks": len(report.forks),
             "archived": len(report.archivados),
             "errors": len(report.con_error),
+            "score": report.puntuacion,
+            "grade": nota(report.puntuacion),
         },
+        "ranking": {"best": [_punt(r) for r in mejores], "worst": [_punt(r) for r in peores]},
         "findings": hallazgos,
         "fail_on": {"rules": list(fail_on), "triggered": list(disparadas)},
         "baseline": baseline,
+        "history": historial,
+        "fixes": arreglos,
         "repos": [_repo_a_dict(r) for r in report.repos],
     }
 
 
 def a_json(report: AuditReport, hallazgos, fail_on, disparadas, ahora=None, solo_ascii=False,
-           baseline=None) -> str:
-    return json.dumps(a_dict(report, hallazgos, fail_on, disparadas, ahora, baseline),
+           baseline=None, historial=None, arreglos=None) -> str:
+    return json.dumps(a_dict(report, hallazgos, fail_on, disparadas, ahora, baseline, historial, arreglos),
                       indent=2, ensure_ascii=solo_ascii) + "\n"
 
 
@@ -110,22 +139,23 @@ def bloque_markdown(report: AuditReport, incluir_forks: bool = False, detalles: 
         (r for r in report.con_pages if incluir_forks or not r.es_fork),
         key=lambda r: r.nombre.lower(),
     )
-    lineas = [MARCA_INICIO, "## Demos en vivo", ""]
+    lineas = [MARCA_INICIO, f"## {t('md_title')}", ""]
     if vivas:
         if detalles:
-            lineas += ["| Proyecto | Demo | Estrellas | Actualizado | Descripción |", "| --- | --- | ---: | --- | --- |"]
+            lineas += [f"| {t('md_project')} | {t('md_demo')} | {t('md_stars')} | {t('md_updated')} | {t('md_desc')} |",
+                       "| --- | --- | ---: | --- | --- |"]
         else:
-            lineas += ["| Proyecto | Demo | Descripción |", "| --- | --- | --- |"]
+            lineas += [f"| {t('md_project')} | {t('md_demo')} | {t('md_desc')} |", "| --- | --- | --- |"]
         for r in vivas:
             desc = r.descripcion or (r.pages_salud.titulo if r.pages_salud else "")
             fila = (f"| [{_celda(r.nombre)}](https://github.com/{report.usuario}/{r.nombre}) "
-                    f"| [Abrir]({r.url_pages}) |")
+                    f"| [{t('md_open')}]({r.url_pages}) |")
             if detalles:
                 fila += f" {'' if r.estrellas is None else r.estrellas} | {(r.ultimo_push or '')[:10]} |"
             lineas.append(f"{fila} {_celda(desc)} |")
     else:
-        lineas.append("_Todavía no hay demos publicadas._")
-    lineas += ["", f"<sub>Generado con [{NOMBRE_PROGRAMA}]({URL_GITHUB}) v{__version__}</sub>", MARCA_FIN]
+        lineas.append(t('md_empty'))
+    lineas += ["", f"<sub>{t('md_generated')} [{NOMBRE_PROGRAMA}]({URL_GITHUB}) v{__version__}</sub>", MARCA_FIN]
     return "\n".join(lineas) + "\n"
 
 
@@ -158,14 +188,16 @@ def a_github(report: AuditReport, hallazgos: Dict[str, List[str]], fail_on: Sequ
         for nombre in repos:
             repo = por_nombre.get(nombre)
             if regla == REGLA_ERRORES:
-                detalle = f"no se pudo analizar: {repo.error if repo else ''}"
+                detalle = t("gh_error", error=repo.error if repo else "")
             elif regla == "broken-pages" and repo and repo.pages_salud:
-                detalle = f"{REGLAS[regla][0]} ({', '.join(repo.pages_salud.problemas)})"
+                detalle = f"{t('rule.broken-pages')} ({', '.join(repo.pages_salud.problemas)})"
             else:
-                detalle = REGLAS[regla][0]
+                detalle = t(f"rule.{regla}")
             lineas.append(f"::{nivel} title={_esc_prop(regla)}::{_esc_dato(f'{nombre}: {detalle}')}")
     for r in report.pages_con_avisos:
-        lineas.append(f"::notice title=pages-warning::{_esc_dato(f'{r.nombre}: ' + ', '.join(r.pages_salud.avisos))}")
+        avisos = r.pages_salud.avisos if r.pages_salud else []
+        lineas.append(f"::notice title=pages-warning::{_esc_dato(f'{r.nombre}: ' + ', '.join(avisos))}")
     if not lineas:
-        lineas.append(f"::notice title={NOMBRE_PROGRAMA}::Sin hallazgos en {report.total_repos} repositorios de {report.usuario}")
+        lineas.append(f"::notice title={NOMBRE_PROGRAMA}::"
+                      + _esc_dato(t("gh_none", total=report.total_repos, user=report.usuario)))
     return "\n".join(lineas) + "\n"

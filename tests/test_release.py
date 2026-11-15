@@ -44,7 +44,7 @@ def test_classifiers_cubren_las_versiones_del_ci():
 def test_workflow_de_publicacion_valida_tag_y_usa_trusted_publishing():
     wf = leer(".github/workflows/publish.yml")
     assert "release:" in wf and "id-token: write" in wf and "environment: pypi" in wf
-    assert "uv publish --trusted-publishing always" in wf and "does not match" in wf
+    assert "pypa/gh-action-pypi-publish@release/v1" in wf and "attestations: true" in wf and "does not match" in wf
 
 
 def test_readme_enlaces_absolutos_a_docs_y_sin_tokens_ghp():

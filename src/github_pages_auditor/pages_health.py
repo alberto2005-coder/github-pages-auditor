@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from . import tls
+from . import dns, linkcheck, tls
 from .models import ESTADO_NINGUNA, ESTADO_OK, ESTADO_ROTA, PagesHealth
 
 LIMITE_BYTES = 65536
@@ -26,6 +26,11 @@ UMBRAL_TLS_DIAS = 14
 _TITULO = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 _HTML = re.compile(r"<(!doctype\s+html|html|head|body)\b", re.IGNORECASE)
 _META_DESCRIPCION = re.compile(r"<meta\b[^>]*\bname\s*=\s*[\"']description[\"']", re.IGNORECASE)
+_LANG = re.compile(r"<html\b[^>]*\blang\s*=", re.IGNORECASE)
+_ICONO = re.compile(r"<link\b[^>]*\brel\s*=\s*[\"'][^\"']*icon", re.IGNORECASE)
+_IMG = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+_ALT = re.compile(r"\balt\s*=", re.IGNORECASE)
+UMBRAL_PESO_BYTES = 1_000_000
 _OG_IMAGE = re.compile(r"<meta\b[^>]*\bproperty\s*=\s*[\"']og:image[\"']", re.IGNORECASE)
 
 
@@ -68,6 +73,9 @@ def inspeccionar(session, url: str, esperada: bool = False) -> PagesHealth:
     ms = int((time.monotonic() - inicio) * 1000)
     problemas, avisos = [], []
     titulo = None
+    cuerpo = ""
+    icono_en_html = None
+    peso = None
     try:
         status = response.status_code
         final = getattr(response, "url", None) or url
@@ -92,6 +100,17 @@ def inspeccionar(session, url: str, esperada: bool = False) -> PagesHealth:
                     avisos.append("sin-meta-description")
                 if not _OG_IMAGE.search(cuerpo):
                     avisos.append("sin-og-image")
+                if not _LANG.search(cuerpo):
+                    avisos.append("sin-lang")
+                if any(not _ALT.search(img) for img in _IMG.findall(cuerpo)):
+                    avisos.append("imagenes-sin-alt")
+                icono_en_html = _ICONO.search(cuerpo) is not None
+            try:
+                peso = int((getattr(response, "headers", None) or {}).get("Content-Length", ""))
+            except (TypeError, ValueError):
+                peso = None
+            if peso is not None and peso > UMBRAL_PESO_BYTES:
+                avisos.append("pagina-pesada")
             titulo = _titulo(cuerpo)
             if ms > UMBRAL_LENTA_MS:
                 avisos.append("lenta")
@@ -107,14 +126,28 @@ def inspeccionar(session, url: str, esperada: bool = False) -> PagesHealth:
     return PagesHealth(
         estado=estado, url=url, url_final=url_final if estado == ESTADO_OK or esperada else None,
         http_status=status, ms=ms, titulo=titulo, problemas=problemas, avisos=avisos,
+        peso_bytes=peso, icono_en_html=icono_en_html, cuerpo=cuerpo or None,
     )
 
 
-def profundizar(session, salud: PagesHealth) -> None:
-    """Comprobaciones extra de una web que ya responde bien: caducidad TLS y ``404.html``.
+def _existe(session, url: str) -> Optional[bool]:
+    """True/False según responda 200; ``None`` si no se pudo comprobar."""
+    try:
+        respuesta = session.get(url, allow_redirects=True, stream=True)
+        existe = respuesta.status_code == 200
+        respuesta.close()
+        return existe
+    except requests.RequestException:
+        return None
 
-    Solo añade avisos (nunca marca la web como rota) y nunca lanza excepciones de red.
+
+def profundizar(session, salud: PagesHealth, comprobar_enlaces: bool = False) -> None:
+    """Comprobaciones extra de una web que ya responde bien.
+
+    TLS, ``404.html``, ``sitemap.xml``, ``robots.txt``, favicon, DNS del dominio propio y, si se pide,
+    enlaces rotos. Solo añade avisos (nunca marca la web como rota) y nunca lanza excepciones de red.
     """
+    cuerpo, salud.cuerpo = salud.cuerpo, None  # no conservar el HTML en memoria
     if not salud.ok:
         return
     base = salud.url_final or salud.url
@@ -123,12 +156,16 @@ def profundizar(session, salud: PagesHealth) -> None:
         salud.tls_dias = tls.dias_restantes(partes.hostname)
         if salud.tls_dias is not None and salud.tls_dias < UMBRAL_TLS_DIAS:
             salud.avisos.append("tls-caduca-pronto")
+    if partes.hostname and not partes.hostname.endswith(".github.io") and dns.apunta_a_github(partes.hostname) is False:
+        salud.avisos.append("dns-no-apunta-a-github")
     raiz = base if base.endswith("/") else base + "/"
-    try:
-        respuesta = session.get(raiz + "404.html", allow_redirects=True, stream=True)
-        existe = respuesta.status_code == 200
-        respuesta.close()
-    except requests.RequestException:
-        return  # no se pudo comprobar: no se afirma nada
-    if not existe:
-        salud.avisos.append("sin-404-personalizada")
+    for archivo, aviso in (("404.html", "sin-404-personalizada"), ("sitemap.xml", "sin-sitemap"),
+                           ("robots.txt", "sin-robots")):
+        if _existe(session, raiz + archivo) is False:
+            salud.avisos.append(aviso)
+    if salud.icono_en_html is False and _existe(session, raiz + "favicon.ico") is False:
+        salud.avisos.append("sin-favicon")
+    if comprobar_enlaces and cuerpo:
+        salud.enlaces_rotos = linkcheck.enlaces_rotos(session, cuerpo, raiz)
+        if salud.enlaces_rotos:
+            salud.avisos.append("enlaces-rotos")

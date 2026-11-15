@@ -21,6 +21,14 @@ FICHEROS_COMUNIDAD = {
 }
 
 
+def _mensaje(res) -> str:
+    try:
+        datos = res.json()
+        return str(datos.get("message", "")) if isinstance(datos, dict) else ""
+    except ValueError:
+        return ""
+
+
 def _misma_url(a: str, b: str) -> bool:
     """Compara dos URL ignorando esquema, ``www.``, mayúsculas y barra final."""
     def norm(u: str) -> str:
@@ -29,9 +37,21 @@ def _misma_url(a: str, b: str) -> bool:
     return norm(a).rstrip("/") == norm(b).rstrip("/")
 
 
+def _secret_scanning(raw: dict) -> Optional[bool]:
+    seg = raw.get("security_and_analysis")
+    if not isinstance(seg, dict) or not isinstance(seg.get("secret_scanning"), dict):
+        return None
+    return seg["secret_scanning"].get("status") == "enabled"
+
+
 class GitHubAPIProvider:
-    def __init__(self, usuario: str, dominio: str, session: requests.Session, token: Optional[str] = None):
+    def __init__(self, usuario: str, dominio: str, session: requests.Session, token: Optional[str] = None,
+                 org: bool = False, privados: bool = False, deep: bool = False, check_links: bool = False):
         self.usuario = usuario
+        self.org = org
+        self.privados = privados
+        self.deep = deep
+        self.check_links = check_links
         self.dominio = dominio
         self.session = session
         # El token solo se envía a api.github.com, nunca a otros hosts.
@@ -54,9 +74,16 @@ class GitHubAPIProvider:
         for page in range(1, MAX_PAGINAS + 1):
             if on_progress:
                 on_progress(page, len(repos))
-            res = self._get(f"/users/{self.usuario}/repos", params={"per_page": POR_PAGINA, "page": page})
+            if self.org:
+                ruta, params = f"/orgs/{self.usuario}/repos", {"per_page": POR_PAGINA, "page": page, "type": "all"}
+            elif self.privados:  # los repos del usuario del token, públicos y privados
+                ruta, params = "/user/repos", {"per_page": POR_PAGINA, "page": page, "affiliation": "owner",
+                                               "visibility": "all"}
+            else:
+                ruta, params = f"/users/{self.usuario}/repos", {"per_page": POR_PAGINA, "page": page}
+            res = self._get(ruta, params=params)
             if res.status_code == 404:
-                raise UsuarioNoEncontrado(f"El usuario '{self.usuario}' no existe.")
+                raise UsuarioNoEncontrado(f"{'La organización' if self.org else 'El usuario'} '{self.usuario}' no existe.")
             if res.status_code != 200:
                 raise ErrorAuditoria(f"La API de GitHub respondió {res.status_code} al listar los repositorios.")
 
@@ -67,6 +94,8 @@ class GitHubAPIProvider:
                 nombre = raw.get("name")
                 if not nombre:
                     continue
+                if self.privados and (raw.get("owner") or {}).get("login", "").lower() != self.usuario.lower():
+                    continue  # /user/repos también devuelve repos de otros con acceso
                 tiene_pages = bool(raw.get("has_pages", False))
                 licencia = raw.get("license")
                 repos.append(RepoInfo(
@@ -87,6 +116,9 @@ class GitHubAPIProvider:
                     creado=raw.get("created_at"),
                     ultimo_push=raw.get("pushed_at"),
                     homepage=(raw.get("homepage") or "").strip() if "homepage" in raw else None,
+                    privado=raw.get("private") if "private" in raw else None,
+                    rama_defecto=raw.get("default_branch"),
+                    secret_scanning=_secret_scanning(raw),
                 ))
             if len(data) < POR_PAGINA:
                 break
@@ -138,10 +170,45 @@ class GitHubAPIProvider:
         repo.tiene_gitignore = ".gitignore" in archivos
         repo.tiene_licencia = repo.tiene_licencia or any(n.startswith(PREFIJOS_LICENCIA) for n in archivos)
         self._comunidad(repo, archivos)
+        if self.deep:
+            self._profundo(repo, archivos)
 
         if repo.tiene_pages:
             self._comprobar_pages(repo)
         return repo
+
+    def _profundo(self, repo: RepoInfo, raiz: List[str]) -> None:
+        """Seguridad, CI, contribuidores y PRs (``--deep``). Sin permisos el dato queda en ``None``."""
+        base = f"/repos/{self.usuario}/{repo.nombre}"
+        en_github = set(self._nombres(repo.nombre, ".github")) if ".github" in raiz else set()
+        flujos = self._nombres(repo.nombre, ".github/workflows") if "workflows" in en_github else []
+        repo.tiene_ci = any(n.endswith((".yml", ".yaml")) for n in flujos)
+        repo.tiene_dependabot_yml = bool({"dependabot.yml", "dependabot.yaml"} & en_github)
+
+        res = self._get(f"{base}/vulnerability-alerts")
+        repo.alertas_dependabot = True if res.status_code == 204 else False if res.status_code == 404 else None
+
+        if repo.rama_defecto:
+            res = self._get(f"{base}/branches/{repo.rama_defecto}/protection")
+            if res.status_code == 200:
+                repo.rama_protegida = True
+            elif res.status_code == 404 and _mensaje(res) == "Branch not protected":
+                repo.rama_protegida = False  # cualquier otro 404 = sin permisos: no se afirma nada
+
+        res = self._get(f"{base}/contributors", params={"per_page": POR_PAGINA})
+        if res.status_code in (200, 204):
+            datos = res.json() if res.status_code == 200 else []
+            repo.contribuidores = len(datos) if isinstance(datos, list) else None
+        res = self._get(f"{base}/pulls", params={"state": "open", "per_page": POR_PAGINA})
+        if res.status_code == 200 and isinstance(res.json(), list):
+            repo.prs_abiertas = len(res.json())
+        if repo.tiene_ci and repo.rama_defecto:
+            res = self._get(f"{base}/actions/runs", params={"per_page": 1, "branch": repo.rama_defecto,
+                                                            "status": "completed"})
+            if res.status_code == 200 and isinstance(res.json(), dict):
+                ejecuciones = res.json().get("workflow_runs") or []
+                if ejecuciones:
+                    repo.ci_estado = ejecuciones[0].get("conclusion")
 
     def _datos_pages(self, nombre: str) -> Optional[dict]:
         res = self._get(f"/repos/{self.usuario}/{nombre}/pages")
@@ -164,7 +231,7 @@ class GitHubAPIProvider:
             if not candidata.problemas:
                 salud, url = candidata, https
         if salud is None:
-            salud = pages_health.inspeccionar(self.session, url, esperada=True)
+            salud = pages_health.inspeccionar(self.session, url or "", esperada=True)
         if datos.get("status") == "errored":
             salud.problemas.append("build-fallido")
         elif datos.get("status") == "building":
@@ -173,7 +240,7 @@ class GitHubAPIProvider:
             salud.avisos.append("https-no-forzado")
         if salud.problemas:
             salud.estado = ESTADO_ROTA
-        pages_health.profundizar(self.session, salud)
+        pages_health.profundizar(self.session, salud, comprobar_enlaces=self.check_links)
         repo.pages_salud = salud
         repo.url_pages = salud.url_final or url
         if repo.homepage and repo.url_pages and not _misma_url(repo.homepage, repo.url_pages):

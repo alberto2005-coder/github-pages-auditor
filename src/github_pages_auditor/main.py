@@ -3,28 +3,41 @@ import sys
 
 from rich.console import Console
 
+from . import audit as auditoria
 from . import baseline as base
-from . import creditos
+from . import creditos, fix, history, notify, salidas
 from .audit import ejecutar_auditoria
 from .config import Config, parse_args
 from .errors import ErrorAuditoria
-from .formatters import a_github, a_json, bloque_markdown, inyectar
+from .formatters import a_dict, a_github, a_json, bloque_markdown, inyectar
+from .i18n import set_idioma, t
 from .report import generar_txt, renderizar_consola
 from .rules import disparadas, evaluar
+from .score import puntuar_informe
 
 EXIT_OK, EXIT_HALLAZGOS, EXIT_ERROR, EXIT_SIN_REPOS, EXIT_CTRL_C = 0, 1, 2, 3, 130
+REGLA_MIN_SCORE = "min-score"
 
 
-def _contenido(config: Config, reporte, hallazgos, activadas, info_baseline=None) -> str:
+def _contenido(config: Config, reporte, hallazgos, activadas, info_baseline=None, historial=None,
+               arreglos=None) -> str:
     if config.formato == "github":
         return a_github(reporte, hallazgos, config.fail_on)
     if config.formato == "json":
         # En stdout, JSON solo ASCII: sobrevive a cualquier codificación de consola (p. ej. cp1252 en Windows).
         return a_json(reporte, hallazgos, config.fail_on, activadas, solo_ascii=config.salida_estandar,
-                      baseline=info_baseline)
+                      baseline=info_baseline, historial=historial, arreglos=arreglos)
     if config.formato == "md":
         return bloque_markdown(reporte, detalles=config.details)
-    return generar_txt(reporte, hallazgos, config.details)
+    if config.formato == "html":
+        return salidas.a_html(reporte, hallazgos, config.lang, historial)
+    if config.formato == "csv":
+        return salidas.a_csv(reporte, hallazgos, bom=not config.salida_estandar)
+    if config.formato == "sarif":
+        return salidas.a_sarif(reporte, hallazgos, config.fail_on)
+    if config.formato == "badge":
+        return salidas.a_badge(reporte.puntuacion)
+    return generar_txt(reporte, hallazgos, config.details, historial)
 
 
 def _escribir_stdout(texto: str) -> None:
@@ -42,9 +55,16 @@ def _carpeta_ok(ruta: str) -> bool:
     return os.path.isdir(os.path.dirname(os.path.abspath(ruta)))
 
 
+def _necesita_token(config: Config) -> list:
+    pedidas = {"--org": config.org, "--include-private": config.incluir_privados, "--deep": config.deep,
+               "--fix": config.fix, "--fix-pages": config.fix_pages, "--fix-metadata": config.fix_metadata}
+    return [opcion for opcion, activa in pedidas.items() if activa] if not config.usa_api else []
+
+
 def main(args=None) -> int:
-    """Devuelve 0 (ok), 1 (--fail-on disparado), 2 (error), 3 (sin repositorios) o 130 (Ctrl+C)."""
+    """Devuelve 0 (ok), 1 (--fail-on o --min-score disparado), 2 (error), 3 (sin repositorios) o 130 (Ctrl+C)."""
     config = parse_args(args)  # --help, --version y errores de uso salen aquí
+    set_idioma(config.lang)
     # Con '-o -' el informe va a stdout y TODA la interfaz pasa a stderr (stdout queda limpio para pipes).
     console = Console(no_color=config.sin_color, stderr=config.salida_estandar, quiet=config.quiet)
     err = Console(stderr=True, no_color=config.sin_color)
@@ -56,14 +76,24 @@ def main(args=None) -> int:
     if config.inject and not os.path.isfile(config.inject):
         err.print(f"[bold red]❌ No existe el archivo para --inject: '{config.inject}'[/bold red]")
         return EXIT_ERROR
+    sin_token = _necesita_token(config)
+    if sin_token:
+        err.print(f"[bold red]❌ {', '.join(sin_token)} necesita un token de GitHub (modo API): "
+                  "define GITHUB_TOKEN y no uses --no-api.[/bold red]")
+        return EXIT_ERROR
+    if config.webhook and not config.webhook.lower().startswith("https://"):
+        err.print("[bold red]❌ --notify-webhook debe ser una URL https://[/bold red]")
+        return EXIT_ERROR
 
     previo = None
-    if config.baseline:  # se valida antes de auditar, como --inject
-        try:
+    try:
+        if config.baseline:  # se valida antes de auditar, como --inject
             previo = base.cargar(config.baseline)
-        except ErrorAuditoria as e:
-            err.print(f"[bold red]❌ {e}[/bold red]")
-            return EXIT_ERROR
+        if config.history:
+            history.preparar(config.history)
+    except ErrorAuditoria as e:
+        err.print(f"[bold red]❌ {e}[/bold red]")
+        return EXIT_ERROR
 
     try:
         reporte = ejecutar_auditoria(config, console=console)
@@ -79,22 +109,56 @@ def main(args=None) -> int:
         return EXIT_SIN_REPOS
 
     hallazgos = evaluar(reporte.repos, stale_meses=config.stale_meses)
+    puntuar_informe(reporte, stale_meses=config.stale_meses)
+
     info_baseline = None
+    comparables = hallazgos
     if previo is not None:
         nuevos = base.nuevos(hallazgos, previo)
         info_baseline = {"file": config.baseline, "new_findings": {k: v for k, v in nuevos.items() if v}}
-        activadas = disparadas(nuevos, config.fail_on)
-    else:
-        activadas = disparadas(hallazgos, config.fail_on)
+        comparables = nuevos
+    activadas = disparadas(comparables, config.fail_on)
+    if config.min_score is not None and reporte.puntuacion is not None and reporte.puntuacion < config.min_score:
+        activadas.append(REGLA_MIN_SCORE)
 
-    renderizar_consola(reporte, console=console, hallazgos=hallazgos, detalles=config.details)
+    # Histórico: comparar con el último informe guardado ANTES de guardar el actual.
+    historial, nuevos_para_aviso = None, comparables
+    ultimo = history.ultimo(config.history, reporte.usuario) if config.history else None
+    if config.history:
+        actual = a_dict(reporte, hallazgos, config.fail_on, activadas)
+        if ultimo:
+            historial = history.comparar(actual, ultimo[1], ultimo[0])
+            if previo is None:
+                nuevos_para_aviso = base.nuevos(hallazgos, {k: v for k, v in (ultimo[1].get("findings") or {}).items()
+                                                              if isinstance(v, list)})
+
+    # Arreglos opt-in (--fix*): por defecto solo se planean.
+    arreglos = None
+    if config.fix or config.fix_pages or config.fix_metadata:
+        cabeceras = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
+                     "Authorization": f"Bearer {config.github_token}"}
+        try:
+            arreglos = fix.ejecutar(config, reporte, auditoria.crear_sesion_http(timeout=config.timeout),
+                                    cabeceras, hallazgos)
+        except ErrorAuditoria as e:
+            err.print(f"[bold red]❌ {e}[/bold red]")
+            return EXIT_ERROR
+
+    renderizar_consola(reporte, console=console, hallazgos=hallazgos, detalles=config.details, historial=historial)
+    if arreglos is not None:
+        aplicados = config.yes and not config.dry_run
+        console.print(f"\n[bold]{t('fix_applied') if aplicados else t('fix_plan')}[/bold]" if arreglos
+                      else f"\n{t('fix_none')}")
+        for a in arreglos:
+            console.print(f"  [{a['status']}] {a['repo']}: {a['action']} {a['target']}"
+                          + (f" ({a['detail']})" if a.get("detail") else ""), highlight=False, markup=False)
     try:
         if config.archivo_salida:
-            contenido = _contenido(config, reporte, hallazgos, activadas, info_baseline)
+            contenido = _contenido(config, reporte, hallazgos, activadas, info_baseline, historial, arreglos)
             if config.salida_estandar:
                 _escribir_stdout(contenido)
             else:
-                with open(config.archivo_salida, "w", encoding="utf-8") as f:
+                with open(config.archivo_salida, "w", encoding="utf-8", newline="") as f:
                     f.write(contenido)
                 console.print(f"\n[bold green]✅ Reporte exportado a '[white]{config.archivo_salida}[/white]'[/bold green]")
         if config.inject:
@@ -104,6 +168,11 @@ def main(args=None) -> int:
             with open(config.inject, "w", encoding="utf-8") as f:
                 f.write(nuevo)
             console.print(f"[bold green]✅ Tabla de demos actualizada en '[white]{config.inject}[/white]'[/bold green]")
+        if config.history:
+            ruta = history.guardar(config.history, reporte.usuario,
+                                   a_dict(reporte, hallazgos, config.fail_on, activadas, baseline=info_baseline,
+                                          historial=historial, arreglos=arreglos))
+            console.print(f"[dim]📈 Histórico: {ruta}[/dim]", highlight=False, markup=True)
     except ErrorAuditoria as e:
         err.print(f"[bold red]❌ {e}[/bold red]")
         return EXIT_ERROR
@@ -111,10 +180,20 @@ def main(args=None) -> int:
         err.print(f"[bold red]❌ No se pudo escribir la salida: {e}[/bold red]")
         return EXIT_ERROR
 
+    if config.webhook and notify.avisar(config.webhook, reporte.usuario, reporte.puntuacion, nuevos_para_aviso):
+        console.print("[dim]🔔 Aviso enviado al webhook[/dim]")
+
     console.print(f"[dim]{creditos()}[/dim]", highlight=False, soft_wrap=True)
     if activadas:
         err.print(f"[bold red]❌ --fail-on disparado por: {', '.join(activadas)}[/bold red]")
         return EXIT_HALLAZGOS
+    if config.tui:
+        from . import tui
+        try:
+            tui.lanzar(reporte, hallazgos)
+        except ErrorAuditoria as e:
+            err.print(f"[bold red]❌ {e}[/bold red]")
+            return EXIT_ERROR
     return EXIT_OK
 
 

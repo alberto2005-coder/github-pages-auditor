@@ -1,0 +1,130 @@
+"""Textos de la interfaz en español (por defecto) e inglés (``--lang en``).
+
+El JSON no se traduce: sus claves y los identificadores de regla son el contrato estable.
+"""
+from typing import Dict
+
+IDIOMA = "es"
+
+ES: Dict[str, str] = {
+    "user": "Usuario", "domain": "Dominio", "provider": "Proveedor",
+    "pages_title": "🌐 GitHub Pages Activas", "col_repo": "Repositorio", "col_link": "Enlace Desplegado",
+    "details_title": "📊 Detalles por repositorio", "col_lang": "Lenguaje", "col_license": "Licencia",
+    "col_push": "Último push", "col_release": "Release", "col_score": "Nota",
+    "summary_title": "🛡️ Resumen de Auditoría", "col_metric": "Métrica / Categoría", "col_count": "Cantidad",
+    "col_status": "Estado",
+    "row_total": "Total Repositorios", "st_analyzed": "Analizados",
+    "row_pages": "GitHub Pages", "st_active": "Activas",
+    "row_releases": "Releases Publicadas", "st_downloads": "Con Descargas",
+    "row_nothing": "Sin Web ni Releases", "st_inactive": "inactivos",
+    "row_readme": "Sin README", "row_license": "Sin Licencia", "row_gitignore": "Sin .gitignore",
+    "row_description": "Sin Descripción", "st_missing": "faltantes",
+    "row_broken": "Pages rotas", "st_broken": "rotas",
+    "row_warnings": "Pages con avisos", "st_warnings": "avisos",
+    "row_forks": "Forks", "st_external": "Externos", "row_archived": "Archivados", "st_readonly": "Solo lectura",
+    "row_errors": "No analizados", "st_errors": "con error", "st_ok": "✅ OK", "st_repos": "repos",
+    "row_score": "Nota global", "score_line": "Nota global: {score}/100 ({grade})",
+    "best": "🏆 Mejores repos", "worst": "🔧 Repos a mejorar",
+    "history": "Desde el informe anterior ({file}): {delta:+d} puntos",
+    "history_up": "Mejoran: {names}", "history_down": "Empeoran: {names}",
+    "txt_links": "=== ENLACES DE GITHUB PAGES PARA: {user} ===", "txt_domain": "Dominio base: {domain}",
+    "txt_provider": "Proveedor de datos: {provider}", "txt_nopages": "No se encontraron repositorios con GitHub Pages.",
+    "sec_releases": "REPOSITORIOS CON RELEASES", "sec_nothing": "REPOSITORIOS SIN RELEASES NI GITHUB PAGES",
+    "sec_readme": "REPOSITORIOS SIN README", "sec_license": "REPOSITORIOS SIN LICENCIA",
+    "sec_gitignore": "REPOSITORIOS SIN .GITIGNORE", "sec_description": "REPOSITORIOS SIN DESCRIPCIÓN (ABOUT)",
+    "sec_forks": "REPOSITORIOS QUE SON FORKS", "sec_archived": "REPOSITORIOS ARCHIVADOS",
+    "sec_broken": "GITHUB PAGES ROTAS", "sec_warnings": "GITHUB PAGES CON AVISOS",
+    "sec_errors": "REPOSITORIOS NO ANALIZADOS (ERROR DE RED)", "sec_details": "DETALLES POR REPOSITORIO",
+    "sec_ranking": "NOTA DE SALUD", "none": "Ninguno", "generated": "Generado con github-pages-auditor v{version}",
+    "gh_error": "no se pudo analizar: {error}", "gh_none": "Sin hallazgos en {total} repositorios de {user}",
+    "md_title": "Demos en vivo", "md_project": "Proyecto", "md_demo": "Demo", "md_desc": "Descripción",
+    "md_stars": "Estrellas", "md_updated": "Actualizado", "md_open": "Abrir",
+    "md_empty": "_Todavía no hay demos publicadas._", "md_generated": "Generado con",
+    "html_title": "Informe de auditoría", "html_filter": "Filtrar repositorios…", "html_findings": "Hallazgos",
+    "html_status": "Pages", "html_stars": "Estrellas", "html_summary": "Resumen",
+    "notify_title": "{user}: hallazgos nuevos ({count}) · nota {score}/100",
+    "fix_plan": "Plan de arreglos (no se escribe nada; añade --yes para aplicarlo):",
+    "fix_applied": "Arreglos aplicados:", "fix_none": "No hay nada que arreglar.",
+    "rule.missing-readme": "Repositorio sin README", "rule.missing-license": "Repositorio sin licencia",
+    "rule.missing-gitignore": "Repositorio sin .gitignore", "rule.missing-description": "Repositorio sin descripción (About)",
+    "rule.broken-pages": "GitHub Pages activadas pero rotas",
+    "rule.missing-security-policy": "Sin política de seguridad (SECURITY.md)",
+    "rule.missing-contributing": "Sin guía de contribución (CONTRIBUTING.md)",
+    "rule.missing-code-of-conduct": "Sin código de conducta (CODE_OF_CONDUCT.md)",
+    "rule.missing-issue-template": "Sin plantillas de issues", "rule.missing-topics": "Sin topics",
+    "rule.missing-homepage": "Con Pages pero sin URL de la demo en el campo Website",
+    "rule.stale-repo": "Sin actividad reciente",
+    "rule.missing-ci": "Sin CI (GitHub Actions)", "rule.missing-dependabot": "Sin Dependabot configurado",
+    "rule.failing-ci": "El último workflow falla", "rule.stale-prs": "Muchas PRs abiertas sin atender",
+    "rule.no-branch-protection": "Rama principal sin protección",
+    "rule.analysis-errors": "Repositorio que no se pudo analizar",
+    "rule.min-score": "Nota global por debajo del mínimo",
+}
+
+EN: Dict[str, str] = {
+    "user": "User", "domain": "Domain", "provider": "Provider",
+    "pages_title": "🌐 Active GitHub Pages", "col_repo": "Repository", "col_link": "Deployed link",
+    "details_title": "📊 Per-repository details", "col_lang": "Language", "col_license": "License",
+    "col_push": "Last push", "col_release": "Release", "col_score": "Score",
+    "summary_title": "🛡️ Audit summary", "col_metric": "Metric / Category", "col_count": "Count",
+    "col_status": "Status",
+    "row_total": "Total repositories", "st_analyzed": "Analyzed",
+    "row_pages": "GitHub Pages", "st_active": "Active",
+    "row_releases": "Published releases", "st_downloads": "With downloads",
+    "row_nothing": "No site or releases", "st_inactive": "inactive",
+    "row_readme": "No README", "row_license": "No license", "row_gitignore": "No .gitignore",
+    "row_description": "No description", "st_missing": "missing",
+    "row_broken": "Broken Pages", "st_broken": "broken",
+    "row_warnings": "Pages with warnings", "st_warnings": "warnings",
+    "row_forks": "Forks", "st_external": "External", "row_archived": "Archived", "st_readonly": "Read-only",
+    "row_errors": "Not analyzed", "st_errors": "with errors", "st_ok": "✅ OK", "st_repos": "repos",
+    "row_score": "Overall score", "score_line": "Overall score: {score}/100 ({grade})",
+    "best": "🏆 Best repos", "worst": "🔧 Repos to improve",
+    "history": "Since the previous report ({file}): {delta:+d} points",
+    "history_up": "Improved: {names}", "history_down": "Worsened: {names}",
+    "txt_links": "=== GITHUB PAGES LINKS FOR: {user} ===", "txt_domain": "Base domain: {domain}",
+    "txt_provider": "Data provider: {provider}", "txt_nopages": "No repositories with GitHub Pages were found.",
+    "sec_releases": "REPOSITORIES WITH RELEASES", "sec_nothing": "REPOSITORIES WITH NO RELEASES OR GITHUB PAGES",
+    "sec_readme": "REPOSITORIES WITHOUT README", "sec_license": "REPOSITORIES WITHOUT LICENSE",
+    "sec_gitignore": "REPOSITORIES WITHOUT .GITIGNORE", "sec_description": "REPOSITORIES WITHOUT DESCRIPTION (ABOUT)",
+    "sec_forks": "REPOSITORIES THAT ARE FORKS", "sec_archived": "ARCHIVED REPOSITORIES",
+    "sec_broken": "BROKEN GITHUB PAGES", "sec_warnings": "GITHUB PAGES WITH WARNINGS",
+    "sec_errors": "REPOSITORIES NOT ANALYZED (NETWORK ERROR)", "sec_details": "PER-REPOSITORY DETAILS",
+    "sec_ranking": "HEALTH SCORE", "none": "None", "generated": "Generated with github-pages-auditor v{version}",
+    "gh_error": "could not be analyzed: {error}", "gh_none": "No findings in {total} repositories of {user}",
+    "md_title": "Live demos", "md_project": "Project", "md_demo": "Demo", "md_desc": "Description",
+    "md_stars": "Stars", "md_updated": "Updated", "md_open": "Open",
+    "md_empty": "_No demos published yet._", "md_generated": "Generated with",
+    "html_title": "Audit report", "html_filter": "Filter repositories…", "html_findings": "Findings",
+    "html_status": "Pages", "html_stars": "Stars", "html_summary": "Summary",
+    "notify_title": "{user}: new findings ({count}) · score {score}/100",
+    "fix_plan": "Fix plan (nothing is written; add --yes to apply it):",
+    "fix_applied": "Fixes applied:", "fix_none": "Nothing to fix.",
+    "rule.missing-readme": "Repository without README", "rule.missing-license": "Repository without license",
+    "rule.missing-gitignore": "Repository without .gitignore",
+    "rule.missing-description": "Repository without description (About)",
+    "rule.broken-pages": "GitHub Pages enabled but broken",
+    "rule.missing-security-policy": "No security policy (SECURITY.md)",
+    "rule.missing-contributing": "No contributing guide (CONTRIBUTING.md)",
+    "rule.missing-code-of-conduct": "No code of conduct (CODE_OF_CONDUCT.md)",
+    "rule.missing-issue-template": "No issue templates", "rule.missing-topics": "No topics",
+    "rule.missing-homepage": "Has Pages but the Website field has no demo URL",
+    "rule.stale-repo": "No recent activity",
+    "rule.missing-ci": "No CI (GitHub Actions)", "rule.missing-dependabot": "No Dependabot configured",
+    "rule.failing-ci": "The latest workflow run is failing", "rule.stale-prs": "Many open PRs without attention",
+    "rule.no-branch-protection": "Default branch is not protected",
+    "rule.analysis-errors": "Repository could not be analyzed",
+    "rule.min-score": "Overall score below the minimum",
+}
+
+TEXTOS = {"es": ES, "en": EN}
+
+
+def set_idioma(lang: str) -> None:
+    global IDIOMA
+    IDIOMA = lang if lang in TEXTOS else "es"
+
+
+def t(clave: str, **kw) -> str:
+    texto = TEXTOS[IDIOMA].get(clave) or ES.get(clave) or clave
+    return texto.format(**kw) if kw else texto

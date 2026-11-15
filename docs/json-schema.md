@@ -23,19 +23,25 @@ With `-o -` the JSON is pure ASCII (accents and emojis are `\uXXXX` escapes), so
 | `findings` | object | Una lista de repos por regla (vacía si no hay hallazgos) / one repo list per rule |
 | `fail_on` | object | `rules` (pedidas / requested) y `triggered` (disparadas / triggered) |
 | `repos` | array | Un objeto por repositorio / one object per repository |
+| `ranking` | object | `best` y `worst`: hasta 3 repos propios con `name` y `score` / best and worst repos |
+| `history` | object \| null | Solo con `--history` y un informe previo: `previous_file`, `previous_generated_at`, `score_before`, `score_after`, `delta`, `improved`, `worsened`, `new_repos`, `removed_repos` |
+| `fixes` | array \| null | Solo con `--fix*`: `repo`, `action`, `target`, `status` (`planned`, `applied`, `skipped`, `failed`) y `detail` |
 | `baseline` | object \| null | Solo con `--baseline`: `file` y `new_findings` (hallazgos nuevos por regla) / only with `--baseline` |
 
 ## `summary`
 
 `total`, `analyzed`, `pages_live`, `pages_broken`, `releases`, `no_pages_no_releases`, `missing_readme`,
-`missing_license`, `missing_gitignore`, `missing_description`, `forks`, `archived`, `errors`.
+`missing_license`, `missing_gitignore`, `missing_description`, `forks`, `archived`, `errors`, `score` (nota global 0-100 o `null`) y `grade` (`A`-`E`).
+
+La nota pondera básicos 30, release 10, comunidad 30, actividad 20 y seguridad 10; una categoría sin datos (p. ej. comunidad en modo web) no cuenta y las demás se reescalan. La global ignora forks y archivados.
+Weights: basics 30, release 10, community 30, activity 20, security 10; a category without data is dropped and the rest rescaled. The overall score ignores forks and archived repos.
 
 ## `findings`
 
 Claves = reglas de `--fail-on` / keys = `--fail-on` rules: `missing-readme`, `missing-license`, `missing-gitignore`,
 `missing-description`, `broken-pages`, `analysis-errors` y, desde 1.3.0, las reglas de comunidad `missing-security-policy`,
 `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage` y `stale-repo`
-(solo modo API; no aplican a forks ni archivados). Cada valor es una lista de nombres de repositorio.
+(solo modo API; no aplican a forks ni archivados) y, con `--deep`, `missing-ci`, `missing-dependabot`, `failing-ci`, `stale-prs` y `no-branch-protection`. `--min-score` añade `min-score` a `fail_on.triggered`. Cada valor es una lista de nombres de repositorio.
 Each value is a list of repository names.
 
 ## `repos[]`
@@ -57,6 +63,11 @@ Each value is a list of repository names.
 | `homepage` | string \| null | Campo Website del repo / repo Website field |
 | `latest_release` | object \| null | `tag` y `date` de la última release / latest release tag and date |
 | `community` | object | `security_policy`, `contributing`, `code_of_conduct`, `issue_template`: bool o `null` si se desconoce / bool or `null` if unknown |
+| `score` | int \| null | Nota 0-100 del repo / repo score |
+| `grade` | string \| null | `A` (≥ 90), `B` (≥ 75), `C` (≥ 60), `D` (≥ 40) o `E` |
+| `private` | bool \| null | Repo privado (modo API) / private repo |
+| `default_branch` | string \| null | Rama principal / default branch |
+| `deep` | object | Con `--deep`: `ci`, `ci_status`, `dependabot_yml`, `dependabot_alerts`, `secret_scanning`, `branch_protected`, `contributors`, `open_prs` (`null` = sin dato o sin permisos) |
 | `error` | string \| null | Motivo si el repo no se pudo analizar / why the repo could not be analyzed |
 
 ### `repos[].pages`
@@ -69,8 +80,10 @@ Each value is a list of repository names.
 | `response_ms` | Tiempo de respuesta en ms / response time in ms |
 | `title` | `<title>` de la página / page `<title>` |
 | `problems` | Lista de problemas (hacen que `status` sea `roto`) / problems (make `status` = `roto`): `404`, `http-<código>`, `tls-error`, `timeout`, `sin-conexion`, `redireccion-externa`, `demasiadas-redirecciones`, `cuerpo-vacio`, `build-fallido` |
+| `broken_links` | Con `--check-links`: lista de `"url (código)"`; `null` si no se comprobó / broken links; `null` if not checked |
+| `size_bytes` | `Content-Length` de la portada o `null` / front page size or `null` |
 | `tls_days_left` | Días hasta que caduca el certificado TLS o `null` / days until the TLS certificate expires or `null` |
-| `warnings` | Avisos que no rompen la web / non-breaking warnings: `lenta`, `sin-html`, `https-no-forzado`, `build-en-curso`, `tls-caduca-pronto` (< 14 días), `sin-404-personalizada`, `sin-meta-description`, `sin-og-image`, `homepage-distinta` |
+| `warnings` | Avisos que no rompen la web / non-breaking warnings: `lenta`, `sin-html`, `https-no-forzado`, `build-en-curso`, `tls-caduca-pronto` (< 14 días), `sin-404-personalizada`, `sin-meta-description`, `sin-og-image`, `homepage-distinta`, `sin-lang`, `imagenes-sin-alt`, `pagina-pesada` (> 1 MB), `sin-sitemap`, `sin-robots`, `sin-favicon`, `dns-no-apunta-a-github` (dominio propio; con un proxy como Cloudflare puede avisar sin ser un error), `enlaces-rotos` |
 
 ## Ejemplo / Example
 

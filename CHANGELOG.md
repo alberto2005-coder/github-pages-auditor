@@ -2,6 +2,23 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). / Format based on Keep a Changelog.
 
+## [1.4.0] - 2026-11-15
+
+### Añadido / Added
+- **Nota de salud 0-100** por repo y global (`score`, `grade`; básicos 30, release 10, comunidad 30, actividad 20, seguridad 10; sin datos no cuenta), `--min-score N` y resumen de mejores y peores repos. / Health score, `--min-score`, best/worst ranking.
+- **Histórico:** `--history CARPETA` guarda cada informe y lo compara con el anterior (mejoras y empeoramientos). / History and comparison.
+- **Salidas nuevas:** `-f html` (página autocontenida, ordenable y filtrable), `-f csv`, `-f sarif` (2.1.0), `-f badge` (insignia SVG) y `--notify-webhook` (Discord, Slack o JSON; solo si hay hallazgos nuevos). / New formats and webhook.
+- **`--lang en`** (consola, txt, html, md, anotaciones). / English output.
+- **`--deep`** (API): Dependabot, secret scanning, rama protegida, CI y su último estado, contribuidores y PRs abiertas; reglas `missing-ci`, `missing-dependabot`, `failing-ci`, `stale-prs`, `no-branch-protection`. `--org` y `--include-private`. / Deep data and rules; orgs and private repos.
+- **Pages a fondo:** `sitemap.xml`, `robots.txt`, favicon, `lang`, imágenes sin `alt`, página pesada, DNS del dominio propio y `--check-links` (enlaces rotos, máx. 50 por web). / Deeper Pages checks.
+- **Arreglos opt-in:** `--fix` (SECURITY, CONTRIBUTING, CODE_OF_CONDUCT y plantilla de issues desde plantillas del paquete), `--fix-pages` (Enforce HTTPS), `--fix-metadata` (descripción y topics), `--dry-run` y `--yes`. Por defecto solo se planea. / Opt-in fixes.
+- `--tui` (extra `[tui]`), `--cache CARPETA` (ETag), `--since 30d|FECHA`. / TUI, ETag cache, `--since`.
+- CI: `mypy`, cobertura mínima del 85 %, job `live` manual contra la API real y atestaciones de PyPI. Plantilla de fórmula de Homebrew y guía de `pipx`. / CI and packaging.
+
+### Cambiado / Changed
+- La publicación en PyPI usa `pypa/gh-action-pypi-publish` con atestaciones. / PyPI publishing with attestations.
+- `schema_version` sigue en 1: solo se añaden campos. / `schema_version` is still 1: additive only.
+
 ## [1.3.0] - 2026-11-14
 
 ### Añadido / Added

@@ -7,7 +7,7 @@ from github_pages_auditor import audit
 
 
 class FakeResponse:
-    PAGINA = ("<!doctype html><html><head><title>Demo</title>"
+    PAGINA = ('<!doctype html><html lang="es"><head><title>Demo</title><link rel="icon" href="/i.ico">'
               '<meta name="description" content="Demo"><meta property="og:image" content="https://x/i.png">'
               "</head><body>hola</body></html>")
 
@@ -51,6 +51,9 @@ class FakeSession:
     def head(self, url, **kwargs):
         return self._llamar("HEAD", url, kwargs)
 
+    def request(self, metodo, url, **kwargs):
+        return self._llamar(metodo.upper(), url, kwargs)
+
 
 @pytest.fixture
 def Resp():
@@ -70,6 +73,9 @@ def entorno_limpio(monkeypatch):
     monkeypatch.setattr("github_pages_auditor.config.load_dotenv", lambda *a, **k: False)
     # Nada de sockets reales: la caducidad TLS se simula en cada test que la necesita.
     monkeypatch.setattr("github_pages_auditor.tls.dias_restantes", lambda *a, **k: None)
+    monkeypatch.setattr("github_pages_auditor.dns.apunta_a_github", lambda *a, **k: None)
+    from github_pages_auditor import linkcheck
+    linkcheck._cache.clear()
 
 
 @pytest.fixture

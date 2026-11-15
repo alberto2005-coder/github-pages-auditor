@@ -69,7 +69,30 @@ uvx github-pages-auditor -u USER -f json -o baseline.json -q          # una vez 
 uvx github-pages-auditor -u USER --baseline baseline.json --fail-on all -f github -q
 ```
 
-## 6. Token / Token
+## 6. Nota mínima y comparación con el histórico / Minimum score and history
+
+```yaml
+- uses: actions/cache@v4
+  with: { path: history, key: auditor-history }
+- run: uvx github-pages-auditor -u ${{ github.repository_owner }} -k ${{ secrets.GITHUB_TOKEN }} --history history --min-score 70 -f github -q
+```
+
+## 7. Informes / Reports
+
+`-f html -o informe.html` (página autocontenida), `-f csv`, `-f badge -o score.svg` (insignia para el README) y `-f sarif`
+(SARIF 2.1.0 con los hallazgos; subirlo con `github/codeql-action/upload-sarif` es una prueba manual, GitHub lo muestra según sus reglas de ubicación).
+
+## 8. Aviso por webhook / Webhook alert
+
+Guarda la URL en un secreto, nunca en el TOML ni en el log / keep the URL in a secret, never in the TOML:
+
+```yaml
+- run: uvx github-pages-auditor -u USER -k ${{ secrets.GITHUB_TOKEN }} --history history -q
+  env:
+    NOTIFY_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+```
+
+## 9. Token / Token
 
 En Actions `secrets.GITHUB_TOKEN` basta. Fuera de Actions, un token *fine-grained* sin permisos (solo repos públicos) es suficiente;
 pásalo por la variable `GITHUB_TOKEN`, no con `-k`, para que no quede en el historial.

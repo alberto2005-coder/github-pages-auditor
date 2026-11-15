@@ -59,7 +59,8 @@ def parsear_listado(html: str, usuario: str) -> List[Dict[str, Any]]:
 
 
 class GitHubWebProvider:
-    def __init__(self, usuario: str, dominio: str, session: requests.Session):
+    def __init__(self, usuario: str, dominio: str, session: requests.Session, check_links: bool = False):
+        self.check_links = check_links
         self.usuario = usuario
         self.dominio = dominio
         self.session = session
@@ -69,7 +70,8 @@ class GitHubWebProvider:
         for page in range(1, MAX_PAGINAS + 1):
             if on_progress:
                 on_progress(page, len(vistos))
-            res = self.session.get(f"{URL}/{self.usuario}", params={"page": page, "tab": "repositories"})
+            params: Dict[str, Any] = {"page": page, "tab": "repositories"}
+            res = self.session.get(f"{URL}/{self.usuario}", params=params)
             if res.status_code == 404 and page == 1:
                 raise UsuarioNoEncontrado(f"El usuario '{self.usuario}' no existe.")
             if res.status_code == 429:
@@ -115,6 +117,6 @@ class GitHubWebProvider:
         repo.tiene_pages = salud.ok
         repo.url_pages = salud.url_final if salud.ok else None
         if salud.ok:
-            pages_health.profundizar(self.session, salud)
+            pages_health.profundizar(self.session, salud, comprobar_enlaces=self.check_links)
         repo.pages_salud = salud if salud.ok else None
         return repo

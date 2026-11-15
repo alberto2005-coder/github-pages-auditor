@@ -1,17 +1,27 @@
 import fnmatch
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 import requests
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
 
-from .config import Config
+from .cache import SesionConCache
+from .config import Config, parsear_since
 from .errors import ErrorAuditoria
 from .github_api import GitHubAPIProvider
 from .github_web import GitHubWebProvider
 from .http import crear_sesion_http
 from .models import AuditReport, RepoInfo
+
+
+def _reciente(repo: RepoInfo, limite) -> bool:
+    """``--since``: sin fecha de push (modo web) no se puede filtrar, así que se conserva."""
+    from .rules import _fecha
+    ultimo = _fecha(repo.ultimo_push)
+    if ultimo is None:
+        return True
+    return (ultimo if ultimo.tzinfo else ultimo.replace(tzinfo=limite.tzinfo)) >= limite
 
 
 def _coincide(nombre: str, patrones: Sequence[str]) -> bool:
@@ -32,18 +42,22 @@ def ordenar(repos: List[RepoInfo], criterio: str) -> List[RepoInfo]:
 
 def crear_proveedor(config: Config, session):
     if config.usa_api:
-        return (GitHubAPIProvider(config.usuario, config.dominio_web, session, token=config.github_token),
+        return (GitHubAPIProvider(config.usuario, config.dominio_web, session, token=config.github_token,
+                                  org=bool(config.org), privados=config.incluir_privados, deep=config.deep,
+                                  check_links=config.check_links),
                 "API REST de GitHub (Autenticado)")
-    return (GitHubWebProvider(config.usuario, config.dominio_web, session),
+    return (GitHubWebProvider(config.usuario, config.dominio_web, session, check_links=config.check_links),
             "Scraping Web Público (Sin API)")
 
 
-def ejecutar_auditoria(config: Config, session=None, console: Console = None) -> AuditReport:
+def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] = None) -> AuditReport:
     """Audita todos los repos. Un fallo de red en un repo se anota en ``RepoInfo.error``
     sin tumbar el resto; los errores globales (usuario inexistente, token inválido,
     límite de tasa) se propagan como ``ErrorAuditoria``.
     """
     session = session or crear_sesion_http(timeout=config.timeout)
+    if config.cache:
+        session = SesionConCache(session, config.cache)
     console = console or Console(no_color=config.sin_color)
     provider, nombre_proveedor = crear_proveedor(config, session)
 
@@ -68,6 +82,9 @@ def ejecutar_auditoria(config: Config, session=None, console: Console = None) ->
         and (not config.solo or _coincide(r.nombre, config.solo))
         and not _coincide(r.nombre, config.ignorar)
     ]
+    if config.since:
+        limite = parsear_since(config.since)
+        repos_base = [r for r in repos_base if _reciente(r, limite)]
     informe = AuditReport(usuario=config.usuario, dominio_base=config.dominio_web, proveedor=nombre_proveedor,
                           modo="api" if config.usa_api else "web")
     if not repos_base:
@@ -80,7 +97,7 @@ def ejecutar_auditoria(config: Config, session=None, console: Console = None) ->
             repo.error = str(e)
             return repo
 
-    resultados = [None] * len(repos_base)
+    resultados: List[RepoInfo] = list(repos_base)
     with Progress(SpinnerColumn(), TextColumn("[bold cyan]Auditando código:[/bold cyan]"), BarColumn(bar_width=35),
                   TaskProgressColumn(), TextColumn("[yellow]({task.completed}/{task.total})[/yellow]"),
                   TimeRemainingColumn(), console=console) as progress:

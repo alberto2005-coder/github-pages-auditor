@@ -137,7 +137,7 @@ Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente
 | `-w` | `--web`, `--dominio` | Dominio base de las Pages | No (def. `https://<usuario>.github.io`) |
 | `-k` | `--key`, `--token` | Personal Access Token (activa la API) | No |
 | `-o` | `--output` | Archivo del informe; `-` = salida estándar | No (def. `paginas_github.<formato>`) |
-| `-f` | `--format` | `txt`, `json`, `md` o `github` (anotaciones de Actions) | No (def. `txt`) |
+| `-f` | `--format` | `txt`, `json`, `md`, `github` (anotaciones de Actions), `html`, `csv`, `sarif` o `badge` | No (def. `txt`) |
 | `--fail-on` | | Reglas (o grupos `any`, `community`, `all`) que provocan código de salida 1 | No |
 | `--exclude-forks` | | Ignora los forks | No |
 | `--exclude-archived` | | Ignora los repositorios archivados | No |
@@ -150,6 +150,22 @@ Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente
 | `--baseline` | | Informe JSON previo: `--fail-on` solo por hallazgos nuevos | No |
 | `--config` | | Archivo TOML de configuración | No (def. `.github-pages-auditor.toml`) |
 | `--no-config` | | No leer el archivo de configuración | No |
+| `--min-score` | | Falla (código 1) si la nota global (0-100) es menor | No |
+| `--history` | | Carpeta donde guardar cada informe y comparar con el anterior | No |
+| `--lang` | | `es` (def.) o `en` | No |
+| `--notify-webhook` | | Avisa a un webhook (Discord, Slack, JSON) si hay hallazgos nuevos (mejor por `NOTIFY_WEBHOOK`) | No |
+| `--deep` | | Con token: seguridad, CI, contribuidores y PRs | No |
+| `--org` | | Audita una organización en lugar de un usuario | No |
+| `--include-private` | | Con token: incluye tus repos privados | No |
+| `--check-links` | | Comprueba los enlaces de la portada de cada web | No |
+| `--fix` | | Crea los archivos de comunidad que falten (plantea; `--yes` aplica) | No |
+| `--fix-pages` | | Activa Enforce HTTPS donde falte | No |
+| `--fix-metadata` | | Propone descripción y topics | No |
+| `--dry-run` | | Con `--fix*`, no escribe nada | No |
+| `--yes` | | Con `--fix*`, aplica los cambios | No |
+| `--tui` | | Explorador interactivo (extra `[tui]`) | No |
+| `--cache` | | Caché ETag de la API en esta carpeta | No |
+| `--since` | | Solo repos con push reciente: `30d`, `12w`, `6m`, `1y` o fecha | No |
 | `-q` | `--quiet` | Sin tablas ni progreso | No |
 | `--workers` | | Hilos en paralelo | No (def. `15`) |
 | `--timeout` | | Timeout por petición, en segundos | No (def. `10`) |
@@ -190,7 +206,9 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 
 **Markdown** (`-f md`): tabla de tus demos en vivo, ordenada y sin forks, entre los marcadores `<!-- github-pages-auditor:start -->` y `<!-- github-pages-auditor:end -->`. Con `--inject README.md` se actualiza **dentro de ese archivo**, entre esos marcadores (si no existen, falla sin tocar nada).
 
-**Reglas de `--fail-on`:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` (`any` = estas), más las de comunidad (solo modo API; no aplican a forks ni archivados): `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` (`community` = estas; `all` = todas). Ejemplo: `--fail-on missing-license,broken-pages`.
+**Novedades de la 1.4.0.** Cada repo recibe una **nota de 0 a 100** (`A`-`E`) y el informe una nota global; `--min-score 70` hace fallar el CI si baja de ahí y `--history carpeta` compara con la ejecución anterior. `--deep` añade seguridad, CI y actividad. `--fix` crea SECURITY, CONTRIBUTING, CODE_OF_CONDUCT y la plantilla de issues que falten, `--fix-pages` activa Enforce HTTPS y `--fix-metadata` propone descripción y topics: **por defecto solo muestra el plan; `--yes` lo aplica** (con un token con permiso de escritura, nunca en forks ni archivados). Más recetas en [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md). Instalación alternativa: `pipx install github-pages-auditor` (TUI: `pipx install "github-pages-auditor[tui]"`).
+
+**Reglas de `--fail-on`:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` (`any` = estas), más las de comunidad (solo modo API; no aplican a forks ni archivados): `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` y, con `--deep`, `missing-ci`, `missing-dependabot`, `failing-ci`, `stale-prs`, `no-branch-protection` (`community` = estas; `all` = todas). Ejemplo: `--fail-on missing-license,broken-pages`.
 
 **`-f github`** escribe anotaciones `::error::`/`::warning::` para el log de Actions; **`--baseline informe.json`** compara con un informe anterior y `--fail-on` solo se dispara por hallazgos nuevos. **Action reutilizable:** `uses: alberto2005-coder/github-pages-auditor@v1.3.0` (ver [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
 
@@ -406,6 +424,22 @@ A fine-grained token with no permissions (public repositories only) is enough.
 | `--baseline` | | Previous JSON report: `--fail-on` only for NEW findings | No |
 | `--config` | | TOML configuration file | No (default `.github-pages-auditor.toml`) |
 | `--no-config` | | Do not read the configuration file | No |
+| `--min-score` | | Fail (exit 1) if the overall score (0-100) is lower | No |
+| `--history` | | Folder where each report is saved and compared with the previous one | No |
+| `--lang` | | `es` (default) or `en` | No |
+| `--notify-webhook` | | Alert a webhook (Discord, Slack, JSON) on new findings (prefer `NOTIFY_WEBHOOK`) | No |
+| `--deep` | | With token: security, CI, contributors and PRs | No |
+| `--org` | | Audit an organization instead of a user | No |
+| `--include-private` | | With token: include your private repos | No |
+| `--check-links` | | Check the links on each site's front page | No |
+| `--fix` | | Create missing community files (plans; `--yes` applies) | No |
+| `--fix-pages` | | Turn on Enforce HTTPS where missing | No |
+| `--fix-metadata` | | Suggest description and topics | No |
+| `--dry-run` | | With `--fix*`, writes nothing | No |
+| `--yes` | | With `--fix*`, applies the changes | No |
+| `--tui` | | Interactive explorer (`[tui]` extra) | No |
+| `--cache` | | ETag cache for the API in this folder | No |
+| `--since` | | Only repos with a recent push: `30d`, `12w`, `6m`, `1y` or a date | No |
 | `-q` | `--quiet` | No tables or progress | No |
 | `--workers` | | Parallel threads | No (default `15`) |
 | `--timeout` | | Per-request timeout, in seconds | No (default `10`) |
@@ -445,7 +479,9 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 
 **Markdown** (`-f md`): a sorted table of your live demos, forks excluded, between the `<!-- github-pages-auditor:start -->` and `<!-- github-pages-auditor:end -->` markers. `--inject README.md` updates it **inside that file**, between those markers (if they are missing it fails without touching anything).
 
-**`--fail-on` rules:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` (`any` = these), plus community rules (API mode only; not applied to forks or archived repos): `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` (`community` = these; `all` = everything). Example: `--fail-on missing-license,broken-pages`.
+**What's new in 1.4.0.** Every repo gets a **0-100 score** (`A`-`E`) and the report an overall score; `--min-score 70` fails CI below it and `--history folder` compares with the previous run. `--deep` adds security, CI and activity. `--fix` creates any missing SECURITY, CONTRIBUTING, CODE_OF_CONDUCT and issue template, `--fix-pages` turns on Enforce HTTPS and `--fix-metadata` suggests a description and topics: **by default it only prints the plan; `--yes` applies it** (with a token that can write, never on forks or archived repos). More recipes in [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md). Alternative install: `pipx install github-pages-auditor` (TUI: `pipx install "github-pages-auditor[tui]"`).
+
+**`--fail-on` rules:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` (`any` = these), plus community rules (API mode only; not applied to forks or archived repos): `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` and, with `--deep`, `missing-ci`, `missing-dependabot`, `failing-ci`, `stale-prs`, `no-branch-protection` (`community` = these; `all` = everything). Example: `--fail-on missing-license,broken-pages`.
 
 **`-f github`** writes `::error::`/`::warning::` annotations for the Actions log; **`--baseline report.json`** compares with a previous report so `--fail-on` only triggers on NEW findings. **Reusable Action:** `uses: alberto2005-coder/github-pages-auditor@v1.3.0` (see [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
 

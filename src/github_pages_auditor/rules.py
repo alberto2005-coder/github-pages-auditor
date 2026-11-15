@@ -61,10 +61,19 @@ REGLAS_COMUNIDAD: Dict[str, tuple] = {
                          lambda r, c: _propio(r) and r.tiene_pages and r.homepage is not None and not r.homepage.strip()),
     "stale-repo": ("Sin actividad reciente", _obsoleto),
 }
-REGLAS: Dict[str, tuple] = {**REGLAS_BASICAS, **REGLAS_COMUNIDAD}
+# Reglas de ``--deep`` (1.4.0): solo con el dato conocido (modo API con permisos suficientes).
+REGLAS_PROFUNDAS: Dict[str, tuple] = {
+    "missing-ci": ("Sin CI (GitHub Actions)", lambda r, c: _propio(r) and r.tiene_ci is False),
+    "missing-dependabot": ("Sin Dependabot configurado",
+                           lambda r, c: _propio(r) and r.tiene_dependabot_yml is False and r.alertas_dependabot is False),
+    "failing-ci": ("El último workflow falla", lambda r, c: _propio(r) and r.ci_estado == "failure"),
+    "stale-prs": ("Muchas PRs abiertas sin atender", lambda r, c: _propio(r) and (r.prs_abiertas or 0) > 3),
+    "no-branch-protection": ("Rama principal sin protección", lambda r, c: _propio(r) and r.rama_protegida is False),
+}
+REGLAS: Dict[str, tuple] = {**REGLAS_BASICAS, **REGLAS_COMUNIDAD, **REGLAS_PROFUNDAS}
 REGLA_ERRORES = "analysis-errors"  # repos que no se pudieron analizar (red)
 BASICAS = tuple(REGLAS_BASICAS) + (REGLA_ERRORES,)  # lo que significa 'any' (como en 1.2)
-COMUNIDAD = tuple(REGLAS_COMUNIDAD)
+COMUNIDAD = tuple(REGLAS_COMUNIDAD) + tuple(REGLAS_PROFUNDAS)
 TODAS = BASICAS + COMUNIDAD  # 'all'
 
 

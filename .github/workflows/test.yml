@@ -5,6 +5,7 @@ on:
     branches: ["master"]
   pull_request:
     branches: ["master"]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -34,6 +35,32 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv run --frozen ruff check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run --frozen mypy
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run --frozen pytest --cov  # falla si baja del mínimo (pyproject.toml)
+
+  live:
+    # Prueba de humo contra la API real; solo a mano (Actions -> Run workflow) para no gastar cuota en cada push.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run --frozen pytest -m live -p no:cacheprovider
+        env:
+          RUN_LIVE: "1"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   self-audit:
     # La herramienta audita su propio repositorio (solo reglas que dependen de archivos, no de ajustes del repo).

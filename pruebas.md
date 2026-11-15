@@ -1,4 +1,4 @@
-# Pruebas — github-pages-auditor v1.3.0
+# Pruebas — github-pages-auditor v1.4.0
 
 Marca cada prueba con `[x]` cuando pase, `[!]` si falla, y anota lo que veas en **Resultado**.
 **Auto** = la cubre un test de `pytest` contra un GitHub simulado (no toca la red), así que se repite sola en cada CI. Lo que dependa de GitHub/PyPI reales sigue siendo manual.
@@ -575,6 +575,96 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   ```
   **Resultado:** OK (2026-11-14): PyPI lista 1.2.0, 1.2.1 y 1.3.0; `uvx --refresh github-pages-auditor@1.3.0 -V` → `github-pages-auditor 1.3.0` con créditos. (Justo tras publicar, `uvx` no la veía por caché del índice; con `--refresh` funcionó.)
 
+## 16. Novedades de la 1.4.0
+
+**Automáticas** (`tests/test_v140.py`, `tests/test_live.py`, `tests/test_release.py`; 240 tests en Python 3.10, 3.13 y 3.14; cobertura 95 %; `ruff` y `mypy` en verde):
+
+- [x] **16.1 Nota 0-100, `--min-score`, ranking e histórico** (`--history`, comparación con el informe anterior, archivos corruptos). **Resultado:** Auto: `test_repo_perfecto_100_y_repo_vacio_bajo`, `test_sin_datos_de_comunidad_los_pesos_se_reescalan`, `test_la_release_suma`, `test_global_ignora_forks_y_archivados_y_ranking`, `test_min_score`, `test_history_dos_ejecuciones`, `test_historial_guarda_y_compara`.
+- [x] **16.2 Salidas `html`, `csv`, `sarif`, `badge`.** HTML sin recursos externos y con datos escapados; CSV sin inyección de fórmulas. **Resultado:** Auto: `test_html_escapa_y_no_carga_recursos_externos`, `test_csv_cabecera_bom_e_inyeccion`, `test_sarif_estructura`, `test_badge`. Además se abrió el HTML en un navegador del sandbox: ordena, filtra y se ve bien.
+- [x] **16.3 Webhook** (solo https, solo con hallazgos, nunca imprime la URL, falla en silencio). **Resultado:** Auto: `test_webhook_*`.
+- [x] **16.4 `--lang en`** (mismas claves en ES y EN; reglas traducidas). **Resultado:** Auto: `test_idiomas_tienen_las_mismas_claves`, `test_lang_en_en_txt_y_consola`.
+- [x] **16.5 `--deep`, `--org`, `--include-private`** y reglas nuevas (403 = sin permisos = no se afirma nada). **Resultado:** Auto: `test_deep_*`, `test_org_usa_el_endpoint_de_organizaciones`, `test_include_private_filtra_por_propietario`, `test_opciones_que_exigen_token`.
+- [x] **16.6 Pages a fondo:** `lang`, `alt`, favicon, sitemap, robots, peso, DNS, `--check-links`. **Resultado:** Auto: `test_avisos_html_basicos`, `test_dns_*`, `test_enlaces_*`, `test_check_links_cli`.
+- [x] **16.7 `--fix`, `--fix-pages`, `--fix-metadata`, `--dry-run`, `--yes`:** sin `--yes` no se escribe nada, no se pisan archivos, forks y archivados quedan fuera. **Resultado:** Auto: `test_fix_*`, `test_plantillas_se_leen_del_paquete`.
+- [x] **16.8 `--cache` (ETag), `--since`, `--tui`.** **Resultado:** Auto: `test_cache_*`, `test_since_*`, `test_tui_*`. La TUI también se probó sin pantalla con Textual 8.2.8 (2 filas, 7 columnas, sale con `q`).
+- [x] **16.9 Higiene de release:** versión, CHANGELOG, `uv.lock`, cada opción y cada regla documentadas, workflow con atestaciones. **Resultado:** Auto: `tests/test_release.py`.
+- [x] **16.10 Paquete 1.4.0** (sandbox): `uv build` (incluye las plantillas), instalado en venv limpio con `uv pip` (3.10) y con `pip` + extra `[tui]` (3.13); `-V` da 1.4.0. **Resultado:** OK.
+
+**Manuales** (dependen de GitHub/PyPI reales; no se pueden probar desde el sandbox):
+
+- [ ] **16.11 Nota e histórico con tu cuenta**
+  ```powershell
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --details --sort stars -q
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --history $env:TEMP\hist -q
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --history $env:TEMP\hist -q
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --min-score 95 -q; echo $LASTEXITCODE
+  ```
+  Esperado: tabla con columna Nota, «Nota global» y mejores/peores; la segunda ejecución muestra «+0 puntos»; el último comando termina con código `1`.
+  **Resultado:**
+
+- [ ] **16.12 `--deep` con tu cuenta (con token)**
+  ```powershell
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --deep -f json -o - -q | ConvertFrom-Json | Select-Object -Expand repos | Select-Object -First 5 name,score,@{n="ci";e={$_.deep.ci}},@{n="dependabot";e={$_.deep.dependabot_yml}},@{n="prot";e={$_.deep.branch_protected}}
+  ```
+  Esperado: `ci` y `dependabot` con true/false; `prot` puede ser `null` si el token no tiene permisos de administración (es correcto).
+  **Resultado:**
+
+- [ ] **16.13 Informes HTML, CSV, badge y SARIF**
+  ```powershell
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder -f html -o informe.html -q; start informe.html
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder -f csv -o informe.csv -q
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder -f badge -o score.svg -q; start score.svg
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder -f sarif -o informe.sarif -q
+  ```
+  Esperado: el HTML se abre, ordena y filtra; el CSV se abre bien en Excel; la insignia muestra la nota. Subir el `.sarif` con `github/codeql-action/upload-sarif` es opcional: GitHub puede no mostrar resultados sin archivo asociado.
+  **Resultado:**
+
+- [ ] **16.14 `--lang en` y modo web a fondo**
+  ```powershell
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --lang en --check-links -q
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --no-env --lang en --details
+  ```
+  Esperado: textos en inglés; avisos nuevos de Pages (`sin-sitemap`, `sin-lang`...); sin token los datos de API quedan vacíos sin errores.
+  **Resultado:**
+
+- [ ] **16.15 `--fix` en SIMULACIÓN (no escribe nada)**
+  ```powershell
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --fix --fix-pages --fix-metadata --only 3-en-raya
+  ```
+  Esperado: «Plan de arreglos (no se escribe nada...)» con acciones `planned` y ningún cambio en GitHub.
+  **Resultado:**
+
+- [ ] **16.16 `--fix` REAL en un solo repo de pruebas** (necesita token con permiso de escritura en contenido)
+  ```powershell
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --fix --fix-pages --only 3-en-raya --yes
+  ```
+  Esperado: acciones `applied`; aparecen SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md y la plantilla de issues; Enforce HTTPS activado. Repetirlo: todo `skipped`.
+  **Resultado:**
+
+- [ ] **16.17 Webhook (opcional)**: con `$env:NOTIFY_WEBHOOK` de un canal de pruebas, ejecutar `--history` dos veces con un cambio entre medias. Esperado: mensaje solo con hallazgos nuevos; la URL no aparece en ninguna salida.
+  **Resultado:**
+
+- [ ] **16.18 Caché y `--since`**
+  ```powershell
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --cache $env:TEMP\cache -q
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --cache $env:TEMP\cache -q
+  uvx github-pages-auditor@1.4.0 -u alberto2005-coder --since 30d -q
+  ```
+  Esperado: la segunda ejecución es más rápida y no gasta cuota (304); `--since 30d` audita solo repos con push reciente.
+  **Resultado:**
+
+- [ ] **16.19 TUI (opcional)**: `uvx --with "github-pages-auditor[tui]" github-pages-auditor -u alberto2005-coder --tui` (salir con `q`). Esperado: tabla navegable con filtro.
+  **Resultado:**
+
+- [ ] **16.20 CI de la 1.4.0** (tras el push): matriz, `lint`, `typecheck`, `coverage` y `self-audit` en verde; el job `live` se lanza a mano (*Actions → Run workflow*).
+  **Resultado:**
+
+- [ ] **16.21 Publicación con atestaciones** (tras la release `v1.4.0`): `publish.yml` en verde y, en la página del archivo en PyPI, el apartado de atestaciones. Si la acción de PyPI falla, volver al paso `uv publish --trusted-publishing always` (nada se publica a medias).
+  **Resultado:**
+
+- [ ] **16.22 Instalación con pipx y Homebrew (opcional)**: `pipx install github-pages-auditor`. La fórmula de `packaging/homebrew/` es una plantilla: hay que rellenar el `sha256` del sdist y ejecutar `brew update-python-resources` en tu tap.
+  **Resultado:**
+
 ---
 
 ## Resumen final
@@ -597,6 +687,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 | 13. Documentación | 1 | 0 | 1/3 hechas; el resto, pendiente u opcional |
 | 14. Novedades 1.2.1 | 8 | 0 | 8/11 hechas; el resto, pendiente u opcional |
 | 15. Novedades 1.3.0 | 15 | 0 | 15/18 hechas; pendientes 15.15 (TOML), 15.16 (CI), 15.17 (Action): sin salida pegada |
+| 16. Novedades 1.4.0 | 10 | 0 | 10/22 hechas (auto); 16.11-16.22 manuales pendientes |
 
 **Bugs encontrados** (comando, resultado obtenido, resultado esperado):
 
@@ -605,3 +696,5 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 3. Nota: un token revocado definido en `$env:GITHUB_TOKEN` hace que el modo por defecto dé 401 (comportamiento correcto).
 
 **¿Listo para publicar la 1.3.0?** [x] Sí [ ] No — publicada el 2026-11-14 (PyPI 1.3.0 verificada). Quedan 15.15 (TOML), 15.16 (CI) y 15.17 (Action), sin salida registrada.
+
+**¿Listo para publicar la 1.4.0?** [ ] Sí [ ] No — pendiente de tus pruebas manuales 16.11-16.16 y del CI (16.20).

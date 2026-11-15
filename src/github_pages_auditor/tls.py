@@ -20,6 +20,8 @@ def dias_restantes(host: str, puerto: int = 443, timeout: float = 5.0) -> Option
         with socket.create_connection((host, puerto), timeout=timeout) as sock:
             with contexto.wrap_socket(sock, server_hostname=host) as seguro:
                 certificado = seguro.getpeercert()
-        return dias_hasta(certificado["notAfter"])
+        if not certificado:
+            return None
+        return dias_hasta(str(certificado["notAfter"]))
     except (OSError, KeyError, ValueError, TypeError):
         return None
