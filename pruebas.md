@@ -528,36 +528,36 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 **Manuales** (dependen de GitHub/PyPI reales; no se pueden probar desde el sandbox):
 
-- [ ] **15.11 Datos y comunidad con tu cuenta**
+- [x] **15.11 Datos y comunidad con tu cuenta**
   ```powershell
   $env:GITHUB_TOKEN = "github_pat_xxx"
   uv run github-pages-auditor -u alberto2005-coder --details --sort stars -f json -o - -q | ConvertFrom-Json | Select-Object -Expand repos | Select-Object -First 5 name,stars,language,license,latest_release
   uv run github-pages-auditor -u alberto2005-coder --fail-on community -q; echo $LASTEXITCODE
   ```
   Esperado: estrellas/lenguaje/licencia rellenos; código 1 si algún repo no tiene SECURITY/CONTRIBUTING/etc.
-  **Resultado:**
+  **Resultado:** OK (2026-11-14): `--fail-on community -q` → código `1` (`missing-security-policy, missing-contributing, missing-code-of-conduct, missing-issue-template, missing-topics`). JSON: `stars`, `language` y `license` rellenos (3-en-raya: 0 / CSS / MIT; aegis-osint-suite: 0 / JavaScript / GPL-3.0; alberto2005-coder: sin lenguaje = repo solo con README). `latest_release` vacío en los 5 primeros porque no tienen releases; en `github-pages-auditor` sale `{tag: v1.3.0, date: 2026-11-14T20:05:07Z}`.
 
-- [ ] **15.12 Pages reales: TLS, 404 y SEO**
+- [x] **15.12 Pages reales: TLS, 404 y SEO**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder -f json -o - -q | ConvertFrom-Json | Select-Object -Expand repos | Where-Object pages | Select-Object name,@{n="tls";e={$_.pages.tls_days_left}},@{n="avisos";e={$_.pages.warnings -join ","}}
   ```
   Esperado: `tls_days_left` con un número en tus dominios propios; avisos coherentes con lo que ves en tus webs.
-  **Resultado:**
+  **Resultado:** OK (2026-11-14): 12 sitios con `tls_days_left` = 70 en todos; avisos coherentes (`sin-meta-description`, `sin-og-image`, `https-no-forzado`, `sin-404-personalizada`; `alberto2005-coder.github.io` sin avisos).
 
-- [ ] **15.13 Modo web (sin token) sigue funcionando y trae la última release**
+- [x] **15.13 Modo web (sin token) sigue funcionando y trae la última release**
   ```powershell
   Remove-Item Env:GITHUB_TOKEN; uv run github-pages-auditor -u alberto2005-coder --no-env --details -q
   ```
   Esperado: informe completo; columnas de datos de API vacías, sin errores.
-  **Resultado:**
+  **Resultado:** OK (2026-11-14): sin token y con `--no-env --details -q` → sin errores, código `0`.
 
-- [ ] **15.14 Baseline real**
+- [x] **15.14 Baseline real**
   ```powershell
   uv run github-pages-auditor -u alberto2005-coder -f json -o base.json -q
   uv run github-pages-auditor -u alberto2005-coder --baseline base.json --fail-on all -q; echo $LASTEXITCODE
   ```
   Esperado: código `0` (nada nuevo).
-  **Resultado:**
+  **Resultado:** OK (2026-11-14): `--baseline base.json --fail-on all` → código `0` (nada nuevo respecto al informe guardado).
 
 - [ ] **15.15 Config TOML real**: crea `.github-pages-auditor.toml` con `user = "alberto2005-coder"` y `sort = "name"` y ejecuta `uv run github-pages-auditor -q`. Esperado: audita sin `-u`. Con `token = "x"` dentro: error y salida 2.
   **Resultado:**
@@ -568,12 +568,12 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 - [ ] **15.17 Action reutilizable**: en un repo de pruebas, un workflow con `uses: alberto2005-coder/github-pages-auditor@v1.3.0` (`user`, `token: ${{ secrets.GITHUB_TOKEN }}`, `fail-on: any`). Esperado: anotaciones en el log y job verde/rojo según hallazgos.
   **Resultado:**
 
-- [ ] **15.18 Publicación de la 1.3.0** (tras la release `v1.3.0`)
+- [x] **15.18 Publicación de la 1.3.0** (tras la release `v1.3.0`)
   ```powershell
   cd $env:TEMP
   uvx github-pages-auditor@1.3.0 -V
   ```
-  **Resultado:**
+  **Resultado:** OK (2026-11-14): PyPI lista 1.2.0, 1.2.1 y 1.3.0; `uvx --refresh github-pages-auditor@1.3.0 -V` → `github-pages-auditor 1.3.0` con créditos. (Justo tras publicar, `uvx` no la veía por caché del índice; con `--refresh` funcionó.)
 
 ---
 
@@ -596,7 +596,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 | 12. CI | 0 | 0 | 0/2 hechas; el resto, pendiente u opcional |
 | 13. Documentación | 1 | 0 | 1/3 hechas; el resto, pendiente u opcional |
 | 14. Novedades 1.2.1 | 8 | 0 | 8/11 hechas; el resto, pendiente u opcional |
-| 15. Novedades 1.3.0 | 10 | 0 | 10/18 hechas (auto); 15.11-15.18 manuales pendientes |
+| 15. Novedades 1.3.0 | 15 | 0 | 15/18 hechas; pendientes 15.15 (TOML), 15.16 (CI), 15.17 (Action): sin salida pegada |
 
 **Bugs encontrados** (comando, resultado obtenido, resultado esperado):
 
@@ -604,4 +604,4 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 2. `-f json -o -` con UnicodeEncodeError en Windows (cp1252) → corregido (JSON ASCII por stdout, UTF-8 en el resto).
 3. Nota: un token revocado definido en `$env:GITHUB_TOKEN` hace que el modo por defecto dé 401 (comportamiento correcto).
 
-**¿Listo para publicar la 1.3.0?** [ ] Sí [ ] No — pendiente de tus pruebas manuales 15.11-15.15 y del CI (15.16). La 1.2.1 ya está publicada y verificada.
+**¿Listo para publicar la 1.3.0?** [x] Sí [ ] No — publicada el 2026-11-14 (PyPI 1.3.0 verificada). Quedan 15.15 (TOML), 15.16 (CI) y 15.17 (Action), sin salida registrada.
