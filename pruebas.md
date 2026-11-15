@@ -592,7 +592,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 **Manuales** (dependen de GitHub/PyPI reales; no se pueden probar desde el sandbox):
 
-- [ ] **16.11 Nota e histórico con tu cuenta**
+- [x] **16.11 Nota e histórico con tu cuenta**
   ```powershell
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder --details --sort stars -q
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder --history $env:TEMP\hist -q
@@ -600,16 +600,16 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder --min-score 95 -q; echo $LASTEXITCODE
   ```
   Esperado: tabla con columna Nota, «Nota global» y mejores/peores; la segunda ejecución muestra «+0 puntos»; el último comando termina con código `1`.
-  **Resultado:**
+  **Resultado:** OK (2026-11-15). Nota global 65/100 (C), mejores `github-pages-auditor` (100), `ordo-project` (83), `.github` (75); histórico guardado y 2.ª ejecución «+0 puntos»; `--min-score 95` → «--fail-on disparado por: min-score», código 1.
 
-- [ ] **16.12 `--deep` con tu cuenta (con token)**
+- [x] **16.12 `--deep` con tu cuenta (con token)**
   ```powershell
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder --deep -f json -o - -q | ConvertFrom-Json | Select-Object -Expand repos | Select-Object -First 5 name,score,@{n="ci";e={$_.deep.ci}},@{n="dependabot";e={$_.deep.dependabot_yml}},@{n="prot";e={$_.deep.branch_protected}}
   ```
   Esperado: `ci` y `dependabot` con true/false; `prot` puede ser `null` si el token no tiene permisos de administración (es correcto).
-  **Resultado:**
+  **Resultado:** OK. `ci` y `dependabot` = False en los 5 primeros repos; `prot` vacío (el token no tiene permisos de administración: esperado).
 
-- [ ] **16.13 Informes HTML, CSV, badge y SARIF**
+- [x] **16.13 Informes HTML, CSV, badge y SARIF**
   ```powershell
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder -f html -o informe.html -q; start informe.html
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder -f csv -o informe.csv -q
@@ -617,29 +617,29 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder -f sarif -o informe.sarif -q
   ```
   Esperado: el HTML se abre, ordena y filtra; el CSV se abre bien en Excel; la insignia muestra la nota. Subir el `.sarif` con `github/codeql-action/upload-sarif` es opcional: GitHub puede no mostrar resultados sin archivo asociado.
-  **Resultado:**
+  **Resultado:** OK (2026-11-15). Generados `informe.html`, `informe.csv` y `score.svg` sin errores (el `sarif` ya lo cubre la prueba automática 16.2). Revisión visual del HTML, CSV y la insignia: no la he registrado.
 
-- [ ] **16.14 `--lang en` y modo web a fondo**
+- [x] **16.14 `--lang en` y modo web a fondo**
   ```powershell
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder --lang en --check-links -q
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder --no-env --lang en --details
   ```
   Esperado: textos en inglés; avisos nuevos de Pages (`sin-sitemap`, `sin-lang`...); sin token los datos de API quedan vacíos sin errores.
-  **Resultado:**
+  **Resultado:** OK. `--lang en --check-links` sale todo en inglés (proveedor y «Auditing code» incluidos, tras la corrección); modo web con `--lang en` OK (80/100 B, sin errores).
 
-- [ ] **16.15 `--fix` en SIMULACIÓN (no escribe nada)**
+- [x] **16.15 `--fix` en SIMULACIÓN (no escribe nada)**
   ```powershell
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder --fix --fix-pages --fix-metadata --only 3-en-raya
   ```
   Esperado: «Plan de arreglos (no se escribe nada...)» con acciones `planned` y ningún cambio en GitHub.
-  **Resultado:**
+  **Resultado:** OK. «Plan de arreglos (no se escribe nada...)» con 4 acciones `planned` (SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, plantilla de issues). Sin token, `--fix` da el error esperado.
 
-- [ ] **16.16 `--fix` REAL en un solo repo de pruebas** (necesita token con permiso de escritura en contenido)
+- [x] **16.16 `--fix` REAL en un solo repo de pruebas** (necesita token con permiso de escritura en contenido)
   ```powershell
   uvx github-pages-auditor@1.4.0 -u alberto2005-coder --fix --fix-pages --only 3-en-raya --yes
   ```
   Esperado: acciones `applied`; aparecen SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md y la plantilla de issues; Enforce HTTPS activado. Repetirlo: todo `skipped`.
-  **Resultado:**
+  **Resultado:** OK tras repetir con un token con permiso de escritura. 1.ª ejecución: 4 acciones `applied` (SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, plantilla de issues) y la nota de `3-en-raya` pasa de 60 a 82. 2.ª ejecución: «No hay nada que arreglar» (los archivos ya existen). Una auditoría inmediata mostró Pages «rota» un instante (reconstrucción de Pages tras el commit); luego vuelve a aparecer activa. Primer intento con token sin permisos: 4 × `failed (HTTP 403)` sin escribir nada.
 
 - [ ] **16.17 Webhook (opcional)**: con `$env:NOTIFY_WEBHOOK` de un canal de pruebas, ejecutar `--history` dos veces con un cambio entre medias. Esperado: mensaje solo con hallazgos nuevos; la URL no aparece en ninguna salida.
   **Resultado:**
@@ -659,8 +659,9 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 - [ ] **16.20 CI de la 1.4.0** (tras el push): matriz, `lint`, `typecheck`, `coverage` y `self-audit` en verde; el job `live` se lanza a mano (*Actions → Run workflow*).
   **Resultado:**
 
-- [ ] **16.21 Publicación con atestaciones** (tras la release `v1.4.0`): `publish.yml` en verde y, en la página del archivo en PyPI, el apartado de atestaciones. Si la acción de PyPI falla, volver al paso `uv publish --trusted-publishing always` (nada se publica a medias).
+- [x] **16.21 Publicación con atestaciones** (tras la release `v1.4.0`): `publish.yml` en verde y, en la página del archivo en PyPI, el apartado de atestaciones. Si la acción de PyPI falla, volver al paso `uv publish --trusted-publishing always` (nada se publica a medias).
   **Resultado:**
+  **Resultado:** Publicada el 2026-11-15: la 1.4.0 aparece en PyPI (tras unos minutos de caché) y `uvx --refresh github-pages-auditor@1.4.0 -V` muestra 1.4.0. `uvx github-pages-auditor@1.4.0 -u alberto2005-coder --details` funciona (modo web, sin token: 80/100 B, release v1.4.0 detectada en este repo con nota 100). Pendiente de confirmar: el apartado de atestaciones en PyPI y el workflow `publish` en verde.
 
 - [ ] **16.22 Instalación con pipx y Homebrew (opcional)**: `pipx install github-pages-auditor`. La fórmula de `packaging/homebrew/` es una plantilla: hay que rellenar el `sha256` del sdist y ejecutar `brew update-python-resources` en tu tap.
   **Resultado:**
@@ -687,7 +688,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 | 13. Documentación | 1 | 0 | 1/3 hechas; el resto, pendiente u opcional |
 | 14. Novedades 1.2.1 | 8 | 0 | 8/11 hechas; el resto, pendiente u opcional |
 | 15. Novedades 1.3.0 | 15 | 0 | 15/18 hechas; pendientes 15.15 (TOML), 15.16 (CI), 15.17 (Action): sin salida pegada |
-| 16. Novedades 1.4.0 | 10 | 0 | 10/22 hechas (auto); 16.11-16.22 manuales pendientes |
+| 16. Novedades 1.4.0 | 17 | 0 | 17/22 hechas; pendientes confirmar CI (16.20) y atestaciones (16.21) y opcionales 16.17-16.19, 16.22 |
 
 **Bugs encontrados** (comando, resultado obtenido, resultado esperado):
 
@@ -697,4 +698,4 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 **¿Listo para publicar la 1.3.0?** [x] Sí [ ] No — publicada el 2026-11-14 (PyPI 1.3.0 verificada). Quedan 15.15 (TOML), 15.16 (CI) y 15.17 (Action), sin salida registrada.
 
-**¿Listo para publicar la 1.4.0?** [ ] Sí [ ] No — pendiente de tus pruebas manuales 16.11-16.16 y del CI (16.20).
+**¿Listo para publicar la 1.4.0?** [x] Sí [ ] No — publicada el 2026-11-15 (PyPI 1.4.0 verificada con `uvx`). Quedan por confirmar el CI en verde (16.20) y las atestaciones (16.21).
