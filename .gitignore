@@ -13,10 +13,11 @@ wheels/
 __pycache__/
 *.py[cod]
 
-# Secretos
+# Secretos y configuración local
 .env
 .env.*
 !.env.example
+.github-pages-auditor.local.toml
 
 # Tests y cobertura
 .pytest_cache/
@@ -33,8 +34,14 @@ htmlcov/
 Thumbs.db
 
 # Salidas generadas por la herramienta y por las pruebas manuales
+# (con "/" delante solo afecta a la raíz del proyecto)
 paginas_github.*
 api.txt
 informe.txt
 prueba-readme.md
 *.log
+/informe.*
+/score.svg
+/*.sarif
+/hist/
+/cache/
