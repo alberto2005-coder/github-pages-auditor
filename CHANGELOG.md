@@ -4,6 +4,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). /
 
 ## [1.4.0] - 2026-11-15
 
+### Corregido / Fixed
+- `--lang en` traduce también el proveedor y la barra de progreso; un 403 en `--fix` explica que falta permiso de escritura en el token. / `--lang en` fully translated; clearer 403 hint.
+
 ### Añadido / Added
 - **Nota de salud 0-100** por repo y global (`score`, `grade`; básicos 30, release 10, comunidad 30, actividad 20, seguridad 10; sin datos no cuenta), `--min-score N` y resumen de mejores y peores repos. / Health score, `--min-score`, best/worst ranking.
 - **Histórico:** `--history CARPETA` guarda cada informe y lo compara con el anterior (mejoras y empeoramientos). / History and comparison.

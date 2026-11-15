@@ -12,6 +12,7 @@ from .errors import ErrorAuditoria
 from .github_api import GitHubAPIProvider
 from .github_web import GitHubWebProvider
 from .http import crear_sesion_http
+from .i18n import t
 from .models import AuditReport, RepoInfo
 
 
@@ -45,9 +46,9 @@ def crear_proveedor(config: Config, session):
         return (GitHubAPIProvider(config.usuario, config.dominio_web, session, token=config.github_token,
                                   org=bool(config.org), privados=config.incluir_privados, deep=config.deep,
                                   check_links=config.check_links),
-                "API REST de GitHub (Autenticado)")
+                t("prov.api"))
     return (GitHubWebProvider(config.usuario, config.dominio_web, session, check_links=config.check_links),
-            "Scraping Web Público (Sin API)")
+            t("prov.web"))
 
 
 def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] = None) -> AuditReport:
@@ -98,7 +99,7 @@ def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] 
             return repo
 
     resultados: List[RepoInfo] = list(repos_base)
-    with Progress(SpinnerColumn(), TextColumn("[bold cyan]Auditando código:[/bold cyan]"), BarColumn(bar_width=35),
+    with Progress(SpinnerColumn(), TextColumn("[bold cyan]" + t("progress") + "[/bold cyan]"), BarColumn(bar_width=35),
                   TaskProgressColumn(), TextColumn("[yellow]({task.completed}/{task.total})[/yellow]"),
                   TimeRemainingColumn(), console=console) as progress:
         task_audit = progress.add_task("audit", total=len(repos_base))

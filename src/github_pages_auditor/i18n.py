@@ -59,6 +59,10 @@ ES: Dict[str, str] = {
     "rule.no-branch-protection": "Rama principal sin protección",
     "rule.analysis-errors": "Repositorio que no se pudo analizar",
     "rule.min-score": "Nota global por debajo del mínimo",
+    "prov.api": "API REST de GitHub (Autenticado)",
+    "prov.web": "Scraping Web Público (Sin API)",
+    "progress": "Auditando código:",
+    "fix.403": "HTTP 403: el token no tiene permiso de escritura (Contents: Read and write; Pages/Admin. para --fix-pages)",
 }
 
 EN: Dict[str, str] = {
@@ -115,6 +119,10 @@ EN: Dict[str, str] = {
     "rule.no-branch-protection": "Default branch is not protected",
     "rule.analysis-errors": "Repository could not be analyzed",
     "rule.min-score": "Overall score below the minimum",
+    "prov.api": "GitHub REST API (Authenticated)",
+    "prov.web": "Public web scraping (No API)",
+    "progress": "Auditing code:",
+    "fix.403": "HTTP 403: the token lacks write permission (Contents: Read and write; Pages/Administration for --fix-pages)",
 }
 
 TEXTOS = {"es": ES, "en": EN}

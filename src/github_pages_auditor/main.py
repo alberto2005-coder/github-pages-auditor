@@ -152,6 +152,8 @@ def main(args=None) -> int:
         for a in arreglos:
             console.print(f"  [{a['status']}] {a['repo']}: {a['action']} {a['target']}"
                           + (f" ({a['detail']})" if a.get("detail") else ""), highlight=False, markup=False)
+        if any(a.get("detail") == "HTTP 403" for a in arreglos):
+            console.print(t("fix.403"), highlight=False, markup=False)
     try:
         if config.archivo_salida:
             contenido = _contenido(config, reporte, hallazgos, activadas, info_baseline, historial, arreglos)
