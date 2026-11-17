@@ -1,7 +1,7 @@
 [project]
 name = "github-pages-auditor"
-version = "1.4.0"
-description = "Audit every public repo of a GitHub user in one command: Pages health, releases and quality checks. JSON/Markdown output and CI exit codes. Works with or without a token."
+version = "1.5.0"
+description = "Audit all the repositories of a GitHub user or organization: GitHub Pages health (broken sites, HTTPS, TLS, DNS, broken links), a 0-100 health score, missing LICENSE/SECURITY.md/CI/Dependabot, and automatic fixes via Pull Requests. JSON, HTML, CSV and SARIF output and CI exit codes. Works with or without a token."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -11,7 +11,11 @@ authors = [
 maintainers = [
     { name = "Alberto Ortiz" }
 ]
-keywords = ["github", "github-pages", "auditor", "cli", "ci", "json", "repository-health", "portfolio"]
+keywords = [
+    "github", "github-pages", "github-pages-checker", "auditor", "audit", "cli", "ci", "json", "sarif",
+    "repository-health", "repo-health", "repository-audit", "github-api", "broken-links", "portfolio",
+    "security-policy", "dependabot", "openssf-scorecard", "github-actions", "devops",
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
@@ -23,6 +27,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Internet :: WWW/HTTP :: Site Management",
+    "Natural Language :: Spanish",
+    "Natural Language :: English",
     "Topic :: Utilities",
 ]
 requires-python = ">=3.10"
@@ -40,6 +48,10 @@ tui = ["textual>=0.80"]
 Homepage = "https://github.com/alberto2005-coder/github-pages-auditor"
 Repository = "https://github.com/alberto2005-coder/github-pages-auditor"
 Issues = "https://github.com/alberto2005-coder/github-pages-auditor/issues"
+Documentation = "https://github.com/alberto2005-coder/github-pages-auditor#readme"
+Changelog = "https://github.com/alberto2005-coder/github-pages-auditor/blob/master/CHANGELOG.md"
+"JSON schema" = "https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/json-schema.md"
+"CI recipes" = "https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md"
 Author = "https://github.com/alberto2005-coder/"
 Website = "https://albertoortiz.is-a.dev/"
 
@@ -71,6 +83,7 @@ select = ["E", "F", "W", "I"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402", "E501", "I001"]
 "src/github_pages_auditor/salidas.py" = ["E501"]  # CSS/JS embebidos
+"src/github_pages_auditor/i18n.py" = ["E501"]  # textos de la interfaz
 
 [tool.mypy]
 python_version = "3.10"

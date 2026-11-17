@@ -1,11 +1,15 @@
 """Proveedor CON token: API REST oficial de GitHub (5.000 peticiones/hora)."""
-from typing import List, Optional
+import threading
+import time
+from datetime import datetime, timezone
+from typing import List, Optional, Sequence
+from urllib.parse import quote
 
 import requests
 
 from . import pages, pages_health
 from .errors import ErrorAuditoria, LimiteDeTasa, TokenInvalido, UsuarioNoEncontrado
-from .models import ESTADO_ROTA, RepoInfo
+from .models import ESTADO_CONSTRUYENDO, ESTADO_ROTA, RepoInfo
 from .releases import parsear_ultima_release
 
 API = "https://api.github.com"
@@ -19,6 +23,28 @@ FICHEROS_COMUNIDAD = {
     "tiene_code_of_conduct": ("code_of_conduct", (".github", "docs")),
     "tiene_issue_template": ("issue_template", (".github",)),
 }
+
+
+ESPERA_MAXIMA_S = 60  # si el límite se restablece en menos de esto, se espera y se reintenta una vez
+
+
+def segundos_hasta_reinicio(headers, ahora: Optional[float] = None) -> Optional[float]:
+    """Segundos hasta que se restablece el límite (``Retry-After`` o ``X-RateLimit-Reset``); ``None`` si no se sabe."""
+    try:
+        if "Retry-After" in headers:
+            return max(0.0, float(headers["Retry-After"]))
+        if "X-RateLimit-Reset" in headers:
+            return max(0.0, float(headers["X-RateLimit-Reset"]) - (time.time() if ahora is None else ahora))
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def _hora_reinicio(headers) -> str:
+    try:
+        return datetime.fromtimestamp(float(headers["X-RateLimit-Reset"]), timezone.utc).strftime("%H:%M UTC")
+    except (KeyError, TypeError, ValueError, OverflowError, OSError):
+        return ""
 
 
 def _mensaje(res) -> str:
@@ -46,8 +72,13 @@ def _secret_scanning(raw: dict) -> Optional[bool]:
 
 class GitHubAPIProvider:
     def __init__(self, usuario: str, dominio: str, session: requests.Session, token: Optional[str] = None,
-                 org: bool = False, privados: bool = False, deep: bool = False, check_links: bool = False):
+                 org: bool = False, privados: bool = False, deep: bool = False, check_links: bool = False,
+                 reglas_propias: Sequence[dict] = (), repo_defaults: bool = True):
         self.usuario = usuario
+        self.repo_defaults = repo_defaults
+        self._defaults: Optional[dict] = None
+        self._defaults_lock = threading.Lock()
+        self.reglas_propias = tuple(reglas_propias)
         self.org = org
         self.privados = privados
         self.deep = deep
@@ -60,14 +91,23 @@ class GitHubAPIProvider:
             self._headers["Authorization"] = f"Bearer {token}"
 
     def _get(self, ruta: str, **kwargs):
-        res = self.session.get(f"{API}{ruta}", headers=self._headers, **kwargs)
-        if res.status_code == 401:
-            raise TokenInvalido("GitHub rechazó el token (401). Comprueba que sea válido y no haya caducado.")
-        if res.status_code in (403, 429):
-            headers = getattr(res, "headers", {}) or {}
-            if res.status_code == 429 or headers.get("X-RateLimit-Remaining") == "0" or "Retry-After" in headers:
-                raise LimiteDeTasa("Se agotó el límite de la API de GitHub. Espera a que se restablezca o usa un token.")
-        return res
+        for intento in (1, 2):
+            res = self.session.get(f"{API}{ruta}", headers=self._headers, **kwargs)
+            if res.status_code == 401:
+                raise TokenInvalido("GitHub rechazó el token (401). Comprueba que sea válido y no haya caducado.")
+            if res.status_code in (403, 429):
+                headers = getattr(res, "headers", {}) or {}
+                if res.status_code == 429 or headers.get("X-RateLimit-Remaining") == "0" or "Retry-After" in headers:
+                    espera = segundos_hasta_reinicio(headers)
+                    if intento == 1 and espera is not None and espera <= ESPERA_MAXIMA_S:
+                        time.sleep(espera + 1)  # límite secundario o reinicio inminente: un solo reintento
+                        continue
+                    cuando = _hora_reinicio(headers)
+                    raise LimiteDeTasa("Se agotó el límite de la API de GitHub"
+                                       + (f" (se restablece a las {cuando})" if cuando else "")
+                                       + ". Espera a que se restablezca o usa un token.")
+            return res
+        return res  # pragma: no cover
 
     def obtener_repositorios(self, on_progress=None) -> List[RepoInfo]:
         repos: List[RepoInfo] = []
@@ -157,6 +197,41 @@ class GitHubAPIProvider:
                 encontrado = coincide(en(carpeta), base)
             setattr(repo, atributo, encontrado)
 
+    def _heredables(self) -> dict:
+        """Ficheros de comunidad del repo ``<usuario>/.github`` (GitHub los aplica a los repos que no tienen el suyo).
+
+        Se consulta una sola vez y solo si hace falta. ``{}`` si el repo no existe o no se puede leer.
+        """
+        with self._defaults_lock:
+            if self._defaults is None:
+                self._defaults = {}
+                raiz = self._nombres(".github")
+                if raiz:
+                    nombres = {"": set(raiz)}
+                    for carpeta in ("docs", ".github"):
+                        if carpeta in raiz:
+                            nombres[carpeta] = set(self._nombres(".github", carpeta))
+                    for atributo, (base, carpetas) in FICHEROS_COMUNIDAD.items():
+                        for carpeta in ("",) + tuple(carpetas):
+                            if any(n == base or n.startswith(base + ".") for n in nombres.get(carpeta, ())):
+                                self._defaults[atributo] = True
+                                break
+            return self._defaults
+
+    def _heredar(self, repo: RepoInfo) -> None:
+        """Marca como presentes los ficheros que faltan en el repo pero que hereda de ``.github``."""
+        if not self.repo_defaults or repo.nombre.lower() == ".github":
+            return
+        faltan = [a for a in FICHEROS_COMUNIDAD if getattr(repo, a) is False]
+        if not faltan:
+            return
+        defecto = self._heredables()
+        heredados = [a for a in faltan if defecto.get(a)]
+        for a in heredados:
+            setattr(repo, a, True)
+        if heredados:
+            repo.heredados = [a.replace("tiene_", "") for a in heredados]
+
     def enriquecer_repo(self, repo: RepoInfo) -> RepoInfo:
         # Releases vía feed Atom: no consume cuota de la API.
         atom = self.session.get(f"https://github.com/{self.usuario}/{repo.nombre}/releases.atom")
@@ -170,12 +245,23 @@ class GitHubAPIProvider:
         repo.tiene_gitignore = ".gitignore" in archivos
         repo.tiene_licencia = repo.tiene_licencia or any(n.startswith(PREFIJOS_LICENCIA) for n in archivos)
         self._comunidad(repo, archivos)
+        self._heredar(repo)
         if self.deep:
             self._profundo(repo, archivos)
+        if self.reglas_propias:
+            self._propias(repo)
 
         if repo.tiene_pages:
             self._comprobar_pages(repo)
         return repo
+
+    def _propias(self, repo: RepoInfo) -> None:
+        """Reglas propias del TOML: ¿existe cada ruta? (``None`` si la API no responde 200/404)."""
+        repo.custom = {}
+        for regla in self.reglas_propias:
+            res = self._get(f"/repos/{self.usuario}/{repo.nombre}/contents/{quote(regla['path'].strip('/'))}")
+            if res.status_code in (200, 404):
+                repo.custom[regla["id"]] = res.status_code == 200
 
     def _profundo(self, repo: RepoInfo, raiz: List[str]) -> None:
         """Seguridad, CI, contribuidores y PRs (``--deep``). Sin permisos el dato queda en ``None``."""
@@ -194,6 +280,14 @@ class GitHubAPIProvider:
                 repo.rama_protegida = True
             elif res.status_code == 404 and _mensaje(res) == "Branch not protected":
                 repo.rama_protegida = False  # cualquier otro 404 = sin permisos: no se afirma nada
+
+        if repo.alertas_dependabot:  # gravedad de las alertas abiertas (necesita permiso de lectura de alertas)
+            res = self._get(f"{base}/dependabot/alerts", params={"state": "open", "per_page": POR_PAGINA})
+            if res.status_code == 200 and isinstance(res.json(), list):
+                gravedades = [((a.get("security_advisory") or {}).get("severity") or "").lower()
+                              for a in res.json() if isinstance(a, dict)]
+                repo.alertas_criticas = gravedades.count("critical")
+                repo.alertas_altas = gravedades.count("high")
 
         res = self._get(f"{base}/contributors", params={"per_page": POR_PAGINA})
         if res.status_code in (200, 204):
@@ -239,7 +333,8 @@ class GitHubAPIProvider:
         if datos.get("https_enforced") is False:
             salud.avisos.append("https-no-forzado")
         if salud.problemas:
-            salud.estado = ESTADO_ROTA
+            # Justo después de un commit GitHub reconstruye las Pages y la web falla unos segundos: no es "rota".
+            salud.estado = ESTADO_CONSTRUYENDO if datos.get("status") == "building" else ESTADO_ROTA
         pages_health.profundizar(self.session, salud, comprobar_enlaces=self.check_links)
         repo.pages_salud = salud
         repo.url_pages = salud.url_final or url

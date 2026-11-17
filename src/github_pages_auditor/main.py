@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -5,14 +6,14 @@ from rich.console import Console
 
 from . import audit as auditoria
 from . import baseline as base
-from . import creditos, fix, history, notify, salidas
+from . import creditos, diff, doctor, fix, history, notify, salidas, secretos
 from .audit import ejecutar_auditoria
 from .config import Config, parse_args
 from .errors import ErrorAuditoria
 from .formatters import a_dict, a_github, a_json, bloque_markdown, inyectar
 from .i18n import set_idioma, t
 from .report import generar_txt, renderizar_consola
-from .rules import disparadas, evaluar
+from .rules import disparadas, evaluar, registrar_propias
 from .score import puntuar_informe
 
 EXIT_OK, EXIT_HALLAZGOS, EXIT_ERROR, EXIT_SIN_REPOS, EXIT_CTRL_C = 0, 1, 2, 3, 130
@@ -37,6 +38,10 @@ def _contenido(config: Config, reporte, hallazgos, activadas, info_baseline=None
         return salidas.a_sarif(reporte, hallazgos, config.fail_on)
     if config.formato == "badge":
         return salidas.a_badge(reporte.puntuacion)
+    if config.formato == "trend":
+        return salidas.a_trend(reporte, history.todos(config.history or "", reporte.usuario), config.lang)
+    if config.formato == "issue":
+        return salidas.a_issue(reporte, hallazgos, historial)
     return generar_txt(reporte, hallazgos, config.details, historial)
 
 
@@ -57,8 +62,58 @@ def _carpeta_ok(ruta: str) -> bool:
 
 def _necesita_token(config: Config) -> list:
     pedidas = {"--org": config.org, "--include-private": config.incluir_privados, "--deep": config.deep,
-               "--fix": config.fix, "--fix-pages": config.fix_pages, "--fix-metadata": config.fix_metadata}
+               "--fix": config.fix, "--fix-extra": config.fix_extra, "--fix-pages": config.fix_pages,
+               "--fix-metadata": config.fix_metadata}
     return [opcion for opcion, activa in pedidas.items() if activa] if not config.usa_api else []
+
+
+def _seguro(e: object, config: Config) -> str:
+    """Texto de un error sin tokens ni webhooks."""
+    return secretos.limpiar(e, config.github_token, config.webhook)
+
+
+def _ejecutar_doctor(config: Config, console: Console) -> int:
+    from rich.table import Table
+    sesion = auditoria.crear_sesion_http(timeout=config.timeout)
+    filas = doctor.Doctor(sesion, config.github_token, config.usuario, org=bool(config.org),
+                          privados=config.incluir_privados).ejecutar()
+    tabla = Table(title=t("doctor.title"), title_style="bold cyan", header_style="bold magenta")
+    for columna in ("doctor.col_check", "doctor.col_status", "doctor.col_detail"):
+        tabla.add_column(t(columna))
+    for f in filas:
+        detalle = secretos.limpiar(f["detail"], config.github_token)
+        tabla.add_row(t(f"doctor.check.{f['check']}"), t(f"doctor.st.{f['status']}"), detalle)
+    console.print(tabla)
+    basicos = {f["check"]: f["status"] for f in filas}
+    if basicos.get("token") == doctor.FALLO or basicos.get("api") == doctor.FALLO:
+        console.print(f"[bold red]{t('doctor.summary_fail')}[/bold red]")
+        return EXIT_ERROR
+    if doctor.hay_fallos(filas):
+        console.print(f"[bold red]{t('doctor.summary_fail')}[/bold red]")
+        return EXIT_HALLAZGOS
+    if any(f["status"] in (doctor.AVISO, doctor.DESCONOCIDO) for f in filas):
+        console.print(f"[bold yellow]{t('doctor.summary_warn')}[/bold yellow]")
+    else:
+        console.print(f"[bold green]{t('doctor.summary_ok')}[/bold green]")
+    return EXIT_OK
+
+
+def _ejecutar_diff(config: Config, console: Console, err: Console) -> int:
+    antes_ruta, despues_ruta = config.diff
+    try:
+        datos = diff.comparar_informes(history.cargar(antes_ruta), history.cargar(despues_ruta), antes_ruta, despues_ruta)
+        if config.formato == "json" and config.archivo_salida:
+            texto = json.dumps(datos, indent=2, ensure_ascii=config.salida_estandar) + "\n"
+            if config.salida_estandar:
+                _escribir_stdout(texto)
+            else:
+                with open(config.archivo_salida, "w", encoding="utf-8", newline="") as f:
+                    f.write(texto)
+    except (ErrorAuditoria, OSError) as e:
+        err.print(f"[bold red]❌ {_seguro(e, config)}[/bold red]")
+        return EXIT_ERROR
+    diff.mostrar(datos, console)
+    return EXIT_OK
 
 
 def main(args=None) -> int:
@@ -68,6 +123,16 @@ def main(args=None) -> int:
     # Con '-o -' el informe va a stdout y TODA la interfaz pasa a stderr (stdout queda limpio para pipes).
     console = Console(no_color=config.sin_color, stderr=config.salida_estandar, quiet=config.quiet)
     err = Console(stderr=True, no_color=config.sin_color)
+    registrar_propias(config.reglas_propias)
+
+    if config.token_en_cli:
+        err.print(f"[yellow]{t('warn.token_cli')}[/yellow]")
+    if config.github_token and secretos.env_versionado():
+        err.print(f"[yellow]{t('warn.env_tracked')}[/yellow]")
+    if config.diff:
+        return _ejecutar_diff(config, console, err)
+    if config.doctor:
+        return _ejecutar_doctor(config, Console(no_color=config.sin_color))
 
     if config.archivo_salida and not config.salida_estandar and not _carpeta_ok(config.archivo_salida):
         carpeta = os.path.dirname(os.path.abspath(config.archivo_salida))
@@ -92,13 +157,13 @@ def main(args=None) -> int:
         if config.history:
             history.preparar(config.history)
     except ErrorAuditoria as e:
-        err.print(f"[bold red]❌ {e}[/bold red]")
+        err.print(f"[bold red]❌ {_seguro(e, config)}[/bold red]")
         return EXIT_ERROR
 
     try:
         reporte = ejecutar_auditoria(config, console=console)
     except ErrorAuditoria as e:
-        err.print(f"[bold red]❌ {e}[/bold red]")
+        err.print(f"[bold red]❌ {_seguro(e, config)}[/bold red]")
         return EXIT_ERROR
     except KeyboardInterrupt:
         err.print("\n[bold yellow]⚠️ Operación cancelada por el usuario.[/bold yellow]")
@@ -108,7 +173,7 @@ def main(args=None) -> int:
         err.print("[bold red]❌ No hay repositorios que analizar (usuario sin repos públicos o todos filtrados).[/bold red]")
         return EXIT_SIN_REPOS
 
-    hallazgos = evaluar(reporte.repos, stale_meses=config.stale_meses)
+    hallazgos = evaluar(reporte.repos, stale_meses=config.stale_meses, propias=config.reglas_propias)
     puntuar_informe(reporte, stale_meses=config.stale_meses)
 
     info_baseline = None
@@ -141,7 +206,7 @@ def main(args=None) -> int:
             arreglos = fix.ejecutar(config, reporte, auditoria.crear_sesion_http(timeout=config.timeout),
                                     cabeceras, hallazgos)
         except ErrorAuditoria as e:
-            err.print(f"[bold red]❌ {e}[/bold red]")
+            err.print(f"[bold red]❌ {_seguro(e, config)}[/bold red]")
             return EXIT_ERROR
 
     renderizar_consola(reporte, console=console, hallazgos=hallazgos, detalles=config.details, historial=historial)
@@ -149,9 +214,11 @@ def main(args=None) -> int:
         aplicados = config.yes and not config.dry_run
         console.print(f"\n[bold]{t('fix_applied') if aplicados else t('fix_plan')}[/bold]" if arreglos
                       else f"\n{t('fix_none')}")
+        if arreglos and config.fix_mode == "pr":
+            console.print(t("fix_pr"), highlight=False)
         for a in arreglos:
             console.print(f"  [{a['status']}] {a['repo']}: {a['action']} {a['target']}"
-                          + (f" ({a['detail']})" if a.get("detail") else ""), highlight=False, markup=False)
+                          + (f" ({_seguro(a['detail'], config)})" if a.get("detail") else ""), highlight=False, markup=False)
         if any(a.get("detail") == "HTTP 403" for a in arreglos):
             console.print(t("fix.403"), highlight=False, markup=False)
     try:
@@ -176,7 +243,7 @@ def main(args=None) -> int:
                                           historial=historial, arreglos=arreglos))
             console.print(f"[dim]📈 Histórico: {ruta}[/dim]", highlight=False, markup=True)
     except ErrorAuditoria as e:
-        err.print(f"[bold red]❌ {e}[/bold red]")
+        err.print(f"[bold red]❌ {_seguro(e, config)}[/bold red]")
         return EXIT_ERROR
     except OSError as e:
         err.print(f"[bold red]❌ No se pudo escribir la salida: {e}[/bold red]")
@@ -194,7 +261,7 @@ def main(args=None) -> int:
         try:
             tui.lanzar(reporte, hallazgos)
         except ErrorAuditoria as e:
-            err.print(f"[bold red]❌ {e}[/bold red]")
+            err.print(f"[bold red]❌ {_seguro(e, config)}[/bold red]")
             return EXIT_ERROR
     return EXIT_OK
 

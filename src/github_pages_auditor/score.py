@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .models import AuditReport, RepoInfo
+from .pages_health import AVISOS_SIN_PUNTOS
 from .rules import STALE_MESES_DEFECTO, _fecha
 
 PESOS: Dict[str, int] = {"basicos": 30, "release": 10, "comunidad": 30, "actividad": 20, "seguridad": 10}
@@ -34,7 +35,8 @@ def _basicos(r: RepoInfo) -> Optional[float]:
     partes: List[Optional[float]] = [_bool(r.tiene_readme), _bool(r.tiene_licencia),
                                      _bool(r.tiene_descripcion), _bool(r.tiene_gitignore)]
     if r.tiene_pages and r.pages_salud is not None:
-        partes.append(0.0 if r.pages_rota else max(0.0, 1.0 - 0.25 * len(r.pages_salud.avisos)))
+        avisos = [a for a in r.pages_salud.avisos if a not in AVISOS_SIN_PUNTOS]
+        partes.append(0.0 if r.pages_rota else max(0.0, 1.0 - 0.25 * len(avisos)))
     return _media(partes)
 
 
@@ -62,7 +64,11 @@ def _seguridad(r: RepoInfo) -> Optional[float]:
     dependencias = None
     if r.tiene_dependabot_yml is not None or r.alertas_dependabot is not None:
         dependencias = 1.0 if (r.tiene_dependabot_yml or r.alertas_dependabot) else 0.0
-    return _media([dependencias, _bool(r.rama_protegida), _bool(r.secret_scanning)])
+    vulnerabilidades = None
+    if r.alertas_criticas is not None or r.alertas_altas is not None:
+        vulnerabilidades = 0.0 if ((r.alertas_criticas or 0) + (r.alertas_altas or 0)) else 1.0
+    scorecard = None if r.scorecard is None else min(1.0, r.scorecard / 10)
+    return _media([dependencias, _bool(r.rama_protegida), _bool(r.secret_scanning), vulnerabilidades, scorecard])
 
 
 def puntuar(r: RepoInfo, stale_meses: int = STALE_MESES_DEFECTO, ahora: Optional[datetime] = None) -> Optional[int]:

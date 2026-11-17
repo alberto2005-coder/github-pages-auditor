@@ -6,7 +6,8 @@ import requests
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
 
-from .cache import SesionConCache
+from . import scorecard
+from .cache import SesionConCache, resolver_carpeta
 from .config import Config, parsear_since
 from .errors import ErrorAuditoria
 from .github_api import GitHubAPIProvider
@@ -14,6 +15,7 @@ from .github_web import GitHubWebProvider
 from .http import crear_sesion_http
 from .i18n import t
 from .models import AuditReport, RepoInfo
+from .secretos import limpiar
 
 
 def _reciente(repo: RepoInfo, limite) -> bool:
@@ -45,7 +47,8 @@ def crear_proveedor(config: Config, session):
     if config.usa_api:
         return (GitHubAPIProvider(config.usuario, config.dominio_web, session, token=config.github_token,
                                   org=bool(config.org), privados=config.incluir_privados, deep=config.deep,
-                                  check_links=config.check_links),
+                                  check_links=config.check_links, reglas_propias=config.reglas_propias,
+                                  repo_defaults=config.repo_defaults),
                 t("prov.api"))
     return (GitHubWebProvider(config.usuario, config.dominio_web, session, check_links=config.check_links),
             t("prov.web"))
@@ -58,7 +61,7 @@ def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] 
     """
     session = session or crear_sesion_http(timeout=config.timeout)
     if config.cache:
-        session = SesionConCache(session, config.cache)
+        session = SesionConCache(session, resolver_carpeta(config.cache))
     console = console or Console(no_color=config.sin_color)
     provider, nombre_proveedor = crear_proveedor(config, session)
 
@@ -93,9 +96,12 @@ def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] 
 
     def trabajo(repo: RepoInfo) -> RepoInfo:
         try:
-            return provider.enriquecer_repo(repo)
+            repo = provider.enriquecer_repo(repo)
+            if config.scorecard:
+                repo.scorecard = scorecard.obtener(session, config.usuario, repo)
+            return repo
         except requests.RequestException as e:
-            repo.error = str(e)
+            repo.error = limpiar(e, config.github_token)
             return repo
 
     resultados: List[RepoInfo] = list(repos_base)

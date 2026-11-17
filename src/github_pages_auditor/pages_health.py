@@ -32,6 +32,12 @@ _IMG = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
 _ALT = re.compile(r"\balt\s*=", re.IGNORECASE)
 UMBRAL_PESO_BYTES = 1_000_000
 _OG_IMAGE = re.compile(r"<meta\b[^>]*\bproperty\s*=\s*[\"']og:image[\"']", re.IGNORECASE)
+_OG_TITLE = re.compile(r"<meta\b[^>]*\bproperty\s*=\s*[\"']og:title[\"']", re.IGNORECASE)
+_VIEWPORT = re.compile(r"<meta\b[^>]*\bname\s*=\s*[\"']viewport[\"']", re.IGNORECASE)
+_CANONICAL = re.compile(r"<link\b[^>]*\brel\s*=\s*[\"']canonical[\"']", re.IGNORECASE)
+_MIXTO = re.compile(r"<(?:img|script|iframe|source|video|audio|link)\b[^>]*\b(?:src|href)\s*=\s*[\"']http://", re.IGNORECASE)
+# Avisos de SEO y buenas prácticas añadidos en la 1.5.0: informan, pero no bajan la nota (así el histórico es comparable).
+AVISOS_SIN_PUNTOS = frozenset({"sin-title", "sin-viewport", "sin-og-title", "sin-canonical", "contenido-mixto"})
 
 
 def _leer_inicio(response) -> str:
@@ -102,6 +108,16 @@ def inspeccionar(session, url: str, esperada: bool = False) -> PagesHealth:
                     avisos.append("sin-og-image")
                 if not _LANG.search(cuerpo):
                     avisos.append("sin-lang")
+                if _titulo(cuerpo) is None:
+                    avisos.append("sin-title")
+                if not _VIEWPORT.search(cuerpo):
+                    avisos.append("sin-viewport")
+                if not _OG_TITLE.search(cuerpo):
+                    avisos.append("sin-og-title")
+                if not _CANONICAL.search(cuerpo):
+                    avisos.append("sin-canonical")
+                if url.startswith("https://") and _MIXTO.search(cuerpo):
+                    avisos.append("contenido-mixto")
                 if any(not _ALT.search(img) for img in _IMG.findall(cuerpo)):
                     avisos.append("imagenes-sin-alt")
                 icono_en_html = _ICONO.search(cuerpo) is not None

@@ -3,7 +3,8 @@ import csv
 import html
 import io
 import json
-from typing import Dict, List, Optional, Sequence
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import NOMBRE_PROGRAMA, URL_GITHUB, __version__
 from .i18n import t
@@ -187,3 +188,87 @@ def a_html(report: AuditReport, hallazgos: Dict[str, List[str]], lang: str = "es
         + "</tr></thead><tbody>" + "".join(filas) + "</tbody></table></div>"
         f'<footer>{_e(t("generated", version=__version__))} · <a href="{_e(URL_GITHUB)}" rel="noopener">{_e(URL_GITHUB)}</a>'
         f"</footer></main><script>{JS}</script></body></html>\n")
+
+
+# ------------------------------------------------------------------ trend
+def _fecha_de(nombre: str, datos: Dict[str, Any]) -> str:
+    return str(datos.get("generated_at") or nombre)[:10]
+
+
+def a_trend(report: AuditReport, previos: Sequence[Tuple[str, Dict[str, Any]]], lang: str = "es",
+            ahora: Optional[datetime] = None) -> str:
+    """Página HTML (SVG en línea, sin recursos externos) con la evolución de la nota global.
+
+    ``previos`` son los informes guardados con ``--history`` (de más antiguo a más reciente); el actual va al final.
+    """
+    ahora = ahora or datetime.now(timezone.utc)
+    puntos: List[Tuple[str, Optional[int]]] = [(_fecha_de(n, d), (d.get("summary") or {}).get("score")) for n, d in previos]
+    puntos.append((ahora.strftime("%Y-%m-%d"), report.puntuacion))
+    validos = [(f, p) for f, p in puntos if isinstance(p, int)]
+    ancho, alto, margen = 720, 260, 36
+    if len(validos) >= 2:
+        pasos = len(validos) - 1
+        coords = [(margen + i * (ancho - 2 * margen) / pasos, alto - margen - p / 100 * (alto - 2 * margen))
+                  for i, (_, p) in enumerate(validos)]
+        linea = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
+        marcas = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.5" fill="#0969da"><title>{_e(f)}: {p}</title></circle>'
+                         for (x, y), (f, p) in zip(coords, validos))
+        guias = "".join(f'<line x1="{margen}" x2="{ancho - margen}" y1="{alto - margen - v / 100 * (alto - 2 * margen):.1f}" '
+                        f'y2="{alto - margen - v / 100 * (alto - 2 * margen):.1f}" stroke="currentColor" opacity=".15"/>'
+                        f'<text x="4" y="{alto - margen - v / 100 * (alto - 2 * margen) + 4:.1f}" font-size="11" '
+                        f'fill="currentColor" opacity=".6">{v}</text>' for v in (0, 25, 50, 75, 100))
+        grafica = (f'<svg viewBox="0 0 {ancho} {alto}" role="img" aria-label="{_e(t("trend.title"))}" width="100%">{guias}'
+                   f'<polyline fill="none" stroke="#0969da" stroke-width="2" points="{linea}"/>{marcas}</svg>')
+    else:
+        grafica = f"<p>{_e(t('trend.empty'))}</p>"
+    filas = "".join(f"<tr><td>{_e(f)}</td><td class=\"n\">{_e('–' if p is None else p)}</td></tr>"
+                    for f, p in reversed(puntos[-30:]))
+    cambios = ""
+    if previos:
+        primero, ultimo = previos[0][1], report.repos
+        antes = {str(r.get("name")): r.get("score") for r in primero.get("repos", []) if isinstance(r, dict)}
+        dif = []
+        for r in ultimo:
+            previo = antes.get(r.nombre)
+            if r.puntuacion is not None and isinstance(previo, int):
+                dif.append((r.puntuacion - previo, r.nombre))
+        dif.sort(key=lambda x: (-x[0], x[1].lower()))
+        sube = [f"{_e(n)} (+{d})" for d, n in dif if d > 0][:5]
+        baja = [f"{_e(n)} ({d})" for d, n in reversed(dif) if d < 0][:5]
+        if sube or baja:
+            cambios = (f"<p>{_e(t('trend.since', date=_fecha_de(previos[0][0], primero)))}<br>"
+                       + (f"▲ {', '.join(sube)}<br>" if sube else "") + (f"▼ {', '.join(baja)}" if baja else "") + "</p>")
+    return (
+        f'<!doctype html><html lang="{_e(lang)}"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>{_e(t('trend.title'))} · {_e(report.usuario)}</title><style>{CSS}</style></head><body><main>"
+        f"<h1>{_e(t('trend.title'))} · {_e(report.usuario)}</h1>"
+        f'<p class="sub">{_e(t("trend.current", score=report.puntuacion if report.puntuacion is not None else "–"))}</p>'
+        f'<div class="card">{grafica}</div>{cambios}'
+        f'<div class="wrap"><table><thead><tr><th>{_e(t("trend.date"))}</th><th class="n">{_e(t("trend.score"))}</th></tr></thead>'
+        f"<tbody>{filas}</tbody></table></div>"
+        f'<footer>{_e(t("generated", version=__version__))} · <a href="{_e(URL_GITHUB)}" rel="noopener">{_e(URL_GITHUB)}</a>'
+        "</footer></main></body></html>\n")
+
+
+# ------------------------------------------------------------------ issue
+def a_issue(report: AuditReport, hallazgos: Dict[str, List[str]], historial: Optional[dict] = None) -> str:
+    """Resumen en Markdown pensado para el cuerpo de una issue (lo usa la Action con ``issue: true``)."""
+    letra = nota(report.puntuacion) or "–"
+    lineas = [f"## {t('issue.title', user=report.usuario, score=report.puntuacion if report.puntuacion is not None else '–', grade=letra)}", ""]
+    if historial and historial.get("delta") is not None:
+        lineas += [f"{t('history', file=historial['previous_file'], delta=historial['delta'])}", ""]
+    activos = {r: v for r, v in hallazgos.items() if v}
+    if not activos:
+        lineas.append(t("issue.none"))
+    else:
+        lineas += [f"### {t('issue.findings')}", "", f"| {t('issue.rule')} | {t('issue.repos')} |", "| --- | --- |"]
+        for regla, repos in sorted(activos.items()):
+            nombres = ", ".join(f"`{n}`" for n in repos[:15]) + (f" … (+{len(repos) - 15})" if len(repos) > 15 else "")
+            lineas.append(f"| **{regla}**: {t(f'rule.{regla}').replace('|', ' ')} | {nombres} |")
+    mejores, peores = ranking(report)
+    if mejores or peores:
+        lineas += ["", f"**{t('best')}:** " + ", ".join(f"{r.nombre} ({r.puntuacion})" for r in mejores),
+                   f"**{t('worst')}:** " + ", ".join(f"{r.nombre} ({r.puntuacion})" for r in peores)]
+    lineas += ["", f"<sub>{t('md_generated')} [{NOMBRE_PROGRAMA}]({URL_GITHUB}) v{__version__}</sub>"]
+    return "\n".join(lineas) + "\n"

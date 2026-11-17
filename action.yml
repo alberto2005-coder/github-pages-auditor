@@ -20,6 +20,14 @@ inputs:
     description: Argumentos extra para la CLI (p. ej. "--exclude-forks --baseline base.json")
     required: false
     default: ""
+  issue:
+    description: 'true = abre o actualiza una issue con el resumen (necesita token y "permissions: issues: write")'
+    required: false
+    default: "false"
+  issue-label:
+    description: Etiqueta de la issue del informe (se crea si no existe)
+    required: false
+    default: "github-pages-auditor"
 runs:
   using: composite
   steps:
@@ -40,3 +48,26 @@ runs:
         extra=()
         if [ -n "$INPUT_FAIL_ON" ]; then extra+=(--fail-on "$INPUT_FAIL_ON"); fi
         github-pages-auditor -u "$INPUT_USER" --no-env -f github "${extra[@]}" $INPUT_ARGS
+    - name: Abrir o actualizar la issue del informe
+      if: ${{ always() && inputs.issue == 'true' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        GH_TOKEN: ${{ inputs.token }}
+        INPUT_USER: ${{ inputs.user }}
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_LABEL: ${{ inputs.issue-label }}
+      run: |
+        set -euo pipefail
+        github-pages-auditor -u "$INPUT_USER" --no-env -f issue -o "$RUNNER_TEMP/issue.md" -q \
+          --cache "$RUNNER_TEMP/gpa-cache" $INPUT_ARGS
+        gh label create "$INPUT_LABEL" --repo "$GITHUB_REPOSITORY" --color 0969da \
+          --description "Informe de github-pages-auditor" 2>/dev/null || true
+        numero=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "$INPUT_LABEL" --state open \
+          --json number --jq '.[0].number // empty')
+        if [ -n "$numero" ]; then
+          gh issue edit "$numero" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue.md"
+        else
+          gh issue create --repo "$GITHUB_REPOSITORY" --label "$INPUT_LABEL" \
+            --title "Auditoría de $INPUT_USER (github-pages-auditor)" --body-file "$RUNNER_TEMP/issue.md"
+        fi

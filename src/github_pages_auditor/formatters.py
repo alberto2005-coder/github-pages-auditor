@@ -73,7 +73,12 @@ def _repo_a_dict(r: RepoInfo) -> dict:
             "branch_protected": r.rama_protegida,
             "contributors": r.contribuidores,
             "open_prs": r.prs_abiertas,
+            "critical_alerts": r.alertas_criticas,
+            "high_alerts": r.alertas_altas,
         },
+        "scorecard": r.scorecard,
+        "inherited_files": r.heredados,
+        "custom": r.custom,
         "error": r.error,
     }
 

@@ -1,0 +1,16 @@
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Secretos y registros
+.env
+.env.*
+!.env.example
+*.log
+
+# Rust
+target/
+**/*.rs.bk

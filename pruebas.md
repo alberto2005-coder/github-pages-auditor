@@ -1,4 +1,4 @@
-# Pruebas — github-pages-auditor v1.4.0
+# Pruebas — github-pages-auditor v1.5.0
 
 Marca cada prueba con `[x]` cuando pase, `[!]` si falla, y anota lo que veas en **Resultado**.
 **Auto** = la cubre un test de `pytest` contra un GitHub simulado (no toca la red), así que se repite sola en cada CI. Lo que dependa de GitHub/PyPI reales sigue siendo manual.
@@ -668,6 +668,91 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 ---
 
+## 17. Novedades de la 1.5.0
+
+**Automáticas** (`tests/test_v150.py`; 293-295 tests en Python 3.10, 3.13 y 3.14; cobertura 95 %; `ruff` y `mypy` sin errores):
+
+- [x] **17.1 `--doctor`** (tipo de token, caducidad, límite, permisos; token inválido o ausente → código 2; el token sale enmascarado). **Resultado:** Auto: `test_doctor_*`.
+- [x] **17.2 Pages «construyendo»**: con `status: building` y la web fallando no se marca rota; con `errored` sí. **Resultado:** Auto: `test_pages_en_construccion_*`, `test_pages_construyendo_*`.
+- [x] **17.3 Secretos**: tokens y webhooks ocultos en errores y JSON; aviso del token en la línea de comandos y de `.env` dentro del repo git. **Resultado:** Auto: `test_limpiar_*`, `test_env_versionado_*`, `test_aviso_*`, `test_un_error_de_red_*`.
+- [x] **17.4 Límites y caché**: espera y reintenta si el límite se restablece en menos de un minuto; si no, error con la hora; `--cache auto`. **Resultado:** Auto: `test_limite_*`, `test_cache_auto_*`.
+- [x] **17.5 `--fix-extra`, `--license`, `--fix-mode pr`**: plantillas por lenguaje (YAML válido), rama + archivos + Pull Request, sin `--yes` no escribe, no pisa archivos, si falla la rama no se escribe nada. **Resultado:** Auto: `test_fix_*`, `test_plantillas_*`.
+- [x] **17.6 SEO de Pages**: `sin-title`, `sin-viewport`, `sin-og-title`, `sin-canonical`, `contenido-mixto`; no bajan la nota. **Resultado:** Auto: `test_seo_*`, `test_los_avisos_seo_*`.
+- [x] **17.7 Reglas propias del TOML** (`custom-*`, `file-required`/`file-forbidden`, `--fail-on`, sin dato no hay hallazgo). **Resultado:** Auto: `test_validar_reglas_*`, `test_toml_con_reglas_*`, `test_reglas_propias_*`.
+- [x] **17.8 `--scorecard`, `critical-vulnerabilities`, `low-scorecard`**. **Resultado:** Auto: `test_scorecard_*`, `test_alertas_*`.
+- [x] **17.9 `-f trend`, `-f issue`, `--diff`, Action con issue.** **Resultado:** Auto: `test_trend_*`, `test_issue_*`, `test_diff_*`, `test_la_action_*`.
+- [x] **17.10 Higiene de release**: versión 1.5.0, CHANGELOG, `uv.lock`, cada opción y regla documentadas, JSON documentado. **Resultado:** Auto: `tests/test_release.py`.
+- [x] **17.11 Paquete 1.5.0** (sandbox): `uv build` (19 plantillas incluidas), instalado en venv limpio, `-V` da 1.5.0, `--diff` con archivo inexistente → código 2. **Resultado:** OK.
+
+**Manuales** (con tu cuenta y GitHub real; desde la carpeta del proyecto con `uv run github-pages-auditor`, y tras publicar con `uvx --refresh github-pages-auditor@1.5.0`). Pon antes `$env:GITHUB_TOKEN`:
+
+> **Atajo (opcional):** las comprobaciones de solo lectura de esta sección (17.12-17.18) las cubre un solo comando:
+> `$env:GITHUB_TOKEN="TU_TOKEN"; $env:RUN_LIVE="1"; uv run pytest -m live -q`
+> Solo `--fix ... --yes` (escritura real) sigue siendo manual, y solo si cambia `fix.py`.
+
+- [ ] **17.11b Heredados de `.github`** — `uvx --refresh --from . ver-github-pages -u alberto2005-coder --only github-pages-auditor --details` no debe marcar `missing-security-policy`/`missing-code-of-conduct` si los tienes en tu repo `.github`; con `--no-defaults-repo` sí.
+
+- [ ] **17.12 `--doctor`**
+  ```powershell
+  uv run github-pages-auditor --doctor -u alberto2005-coder
+  ```
+  Esperado: tabla con el token enmascarado (`github_pat_…xxxx`), «Sesión iniciada como alberto2005-coder», límite de peticiones y permisos; la escritura sale «No comprobable» con un token fine-grained.
+  **Resultado:**
+
+- [ ] **17.13 Pages en construcción**: tras un `--fix` real o un commit en un repo con Pages, auditar enseguida. Esperado: `3-en-raya` sale activa con aviso `build-en-curso` (no «rota»).
+  ```powershell
+  uv run github-pages-auditor -u alberto2005-coder --only 3-en-raya --details
+  ```
+  **Resultado:**
+
+- [ ] **17.14 `--deep` con alertas y Scorecard**
+  ```powershell
+  uv run github-pages-auditor -u alberto2005-coder --deep --scorecard -f json -o - -q | ConvertFrom-Json | Select-Object -Expand repos | Select-Object -First 5 name,scorecard,@{n="crit";e={$_.deep.critical_alerts}},@{n="altas";e={$_.deep.high_alerts}}
+  ```
+  Esperado: `scorecard` con número en repos públicos propios y vacío en forks; `crit`/`altas` con número o vacío si el token no puede leer alertas.
+  **Resultado:**
+
+- [ ] **17.15 Reglas propias**: crea `.github-pages-auditor.toml` con `[[custom_rules]]` (`id = "custom-tiene-docs"`, `path = "docs"`) y ejecuta:
+  ```powershell
+  uv run github-pages-auditor -u alberto2005-coder --fail-on custom-tiene-docs -q; echo $LASTEXITCODE
+  ```
+  Esperado: código 1 y los repos sin `docs/` en el informe (borra el TOML después).
+  **Resultado:**
+
+- [ ] **17.16 `--fix-extra` en simulación y `--fix-mode pr` real en UN repo** (token con Contents y Pull requests: Read and write)
+  ```powershell
+  uv run github-pages-auditor -u alberto2005-coder --fix-extra --only 3-en-raya
+  uv run github-pages-auditor -u alberto2005-coder --fix-extra --fix-mode pr --only 3-en-raya --yes
+  ```
+  Esperado: la primera solo muestra el plan; la segunda crea una rama `github-pages-auditor/fix-...` y una Pull Request en `3-en-raya` con `LICENSE`, `.gitignore`, etc. Revisa la PR en GitHub y ciérrala si no la quieres.
+  **Resultado:**
+
+- [ ] **17.17 Tendencia, issue y `--diff`**
+  ```powershell
+  uv run github-pages-auditor -u alberto2005-coder --history $env:TEMP\hist -q
+  uv run github-pages-auditor -u alberto2005-coder --history $env:TEMP\hist -f trend -o evolucion.html -q; start evolucion.html
+  uv run github-pages-auditor -u alberto2005-coder -f issue -o issue.md -q; notepad issue.md
+  uv run github-pages-auditor -u alberto2005-coder -f json -o a.json -q
+  uv run github-pages-auditor -u alberto2005-coder -f json -o b.json -q
+  uv run github-pages-auditor --diff a.json b.json
+  ```
+  Esperado: gráfica con al menos 2 puntos, resumen en Markdown con nota y hallazgos, y «Sin diferencias» en el `--diff`.
+  **Resultado:**
+
+- [ ] **17.18 Secretos**: `uv run github-pages-auditor -u alberto2005-coder -k $env:GITHUB_TOKEN -q` debe avisar del token en la línea de comandos; el aviso nunca muestra el token.
+  **Resultado:**
+
+- [ ] **17.19 Action con issue (opcional)**: workflow de `docs/ci.md` sección 10 con `issue: "true"` y `permissions: issues: write`. Esperado: una issue con la etiqueta `github-pages-auditor` que se actualiza en la siguiente ejecución.
+  **Resultado:**
+
+- [ ] **17.20 CI de la 1.5.0** (tras el push): matriz, `lint`, `typecheck`, `coverage` y `self-audit` en verde.
+  **Resultado:**
+
+- [ ] **17.21 Publicación** (tras la release `v1.5.0`): `publish.yml` en verde, PyPI con 1.5.0 y atestaciones, `uvx --refresh github-pages-auditor@1.5.0 -V`.
+  **Resultado:**
+
+---
+
 ## Resumen final
 
 | Bloque | Pasan | Fallan | Notas |
@@ -689,6 +774,7 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 | 14. Novedades 1.2.1 | 8 | 0 | 8/11 hechas; el resto, pendiente u opcional |
 | 15. Novedades 1.3.0 | 15 | 0 | 15/18 hechas; pendientes 15.15 (TOML), 15.16 (CI), 15.17 (Action): sin salida pegada |
 | 16. Novedades 1.4.0 | 17 | 0 | 17/22 hechas; pendientes confirmar CI (16.20) y atestaciones (16.21) y opcionales 16.17-16.19, 16.22 |
+| 17. Novedades 1.5.0 | 11 | 0 | 11/21 hechas (auto); manuales 17.12-17.21 pendientes |
 
 **Bugs encontrados** (comando, resultado obtenido, resultado esperado):
 
@@ -699,3 +785,5 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 **¿Listo para publicar la 1.3.0?** [x] Sí [ ] No — publicada el 2026-11-14 (PyPI 1.3.0 verificada). Quedan 15.15 (TOML), 15.16 (CI) y 15.17 (Action), sin salida registrada.
 
 **¿Listo para publicar la 1.4.0?** [x] Sí [ ] No — publicada el 2026-11-15 (PyPI 1.4.0 verificada con `uvx`). Quedan por confirmar el CI en verde (16.20) y las atestaciones (16.21).
+
+**¿Listo para publicar la 1.5.0?** [ ] Sí [ ] No — pendiente de las pruebas manuales 17.12-17.18 y del CI (17.20).

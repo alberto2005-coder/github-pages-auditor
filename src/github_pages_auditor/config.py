@@ -14,12 +14,15 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib
 
 from . import NOMBRE_PROGRAMA, __version__, creditos
-from .rules import COMUNIDAD, STALE_MESES_DEFECTO, TODAS, parsear_fail_on
+from .rules import COMUNIDAD, STALE_MESES_DEFECTO, TODAS, parsear_fail_on, validar_reglas_propias
 
 SALIDA_BASE = "paginas_github"
 WORKERS_DEFECTO = 15
 TIMEOUT_DEFECTO = 10.0
-FORMATOS = ("txt", "json", "md", "github", "html", "csv", "sarif", "badge")
+FORMATOS = ("txt", "json", "md", "github", "html", "csv", "sarif", "badge", "trend", "issue")
+EXTENSION = {"trend": "html", "issue": "md"}  # extensión del archivo por defecto si no es el nombre del formato
+MODOS_FIX = ("direct", "pr")
+LICENCIAS = ("mit", "bsd-3-clause", "isc", "unlicense")
 IDIOMAS = ("es", "en")
 ORDENES = ("listing", "name", "stars", "updated")
 ARCHIVO_CONFIG = ".github-pages-auditor.toml"
@@ -64,6 +67,16 @@ class Config:
     tui: bool = False
     cache: Optional[str] = None
     since: Optional[str] = None
+    # 1.5.0
+    doctor: bool = False
+    diff: Tuple[str, ...] = ()
+    fix_extra: bool = False
+    fix_mode: str = "direct"
+    licencia: str = "mit"
+    scorecard: bool = False
+    repo_defaults: bool = True
+    reglas_propias: Tuple[dict, ...] = ()
+    token_en_cli: bool = False
 
     @property
     def usa_api(self) -> bool:
@@ -83,11 +96,13 @@ def normalizar_dominio(dominio: Optional[str], usuario: str) -> str:
     return dominio.rstrip("/")
 
 
-def _fail_on(texto: str):
-    try:
-        return parsear_fail_on(texto)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError(str(e))
+def _fail_on(extras: Tuple[str, ...] = ()):
+    def convertir(texto: str):
+        try:
+            return parsear_fail_on(texto, extras)
+        except ValueError as e:
+            raise argparse.ArgumentTypeError(str(e))
+    return convertir
 
 
 def _lista(texto: str) -> Tuple[str, ...]:
@@ -110,6 +125,7 @@ CLAVES_ARCHIVO: Dict[str, Tuple[str, Any]] = {
     "org": ("org", str), "include_private": ("incluir_privados", bool), "deep": ("deep", bool),
     "check_links": ("check_links", bool), "min_score": ("min_score", int), "history": ("history", str),
     "lang": ("lang", str), "cache": ("cache", str), "since": ("since", str),
+    "scorecard": ("scorecard", bool), "defaults_repo": ("repo_defaults", bool), "custom_rules": ("reglas_propias", "reglas"),
 }
 
 
@@ -132,8 +148,16 @@ def cargar_archivo_config(ruta: str) -> Dict[str, Any]:
         raise ErrorConfig(f"claves desconocidas: {', '.join(desconocidas)}. Válidas: {', '.join(CLAVES_ARCHIVO)}")
 
     valores: Dict[str, Any] = {}
+    try:
+        propias = validar_reglas_propias(datos["custom_rules"]) if "custom_rules" in datos else ()
+    except ValueError as e:
+        raise ErrorConfig(str(e)) from e
+    extras = tuple(r["id"] for r in propias)
     for clave, valor in datos.items():
         destino, tipo = CLAVES_ARCHIVO[clave]
+        if tipo == "reglas":
+            valores[destino] = propias
+            continue
         if tipo == "lista":
             if isinstance(valor, str):
                 valor = [valor]
@@ -141,7 +165,7 @@ def cargar_archivo_config(ruta: str) -> Dict[str, Any]:
                 raise ErrorConfig(f"'{clave}' debe ser una lista de textos")
             if clave == "fail_on":
                 try:
-                    valores[destino] = tuple(parsear_fail_on(",".join(valor)))
+                    valores[destino] = tuple(parsear_fail_on(",".join(valor), extras))
                 except ValueError as e:
                     raise ErrorConfig(f"'fail_on': {e}") from e
             else:
@@ -207,8 +231,11 @@ def crear_parser(archivo: Optional[Dict[str, Any]] = None) -> argparse.ArgumentP
                         help="Formato del informe: txt (por defecto), json (contrato versionado), md "
                              "(tabla de demos en vivo para tu README), github (anotaciones ::warning:: "
                              "para GitHub Actions; sale por stdout), html (página autocontenida), csv, "
-                             "sarif (pestaña de seguridad de GitHub) o badge (insignia SVG con la nota).")
-    parser.add_argument("--fail-on", dest="fail_on", type=_fail_on, default=(), metavar="REGLAS",
+                             "sarif (pestaña de seguridad de GitHub), badge (insignia SVG con la nota), trend "
+                             "(gráfica de la evolución de la nota; necesita --history) o issue (resumen en "
+                             "Markdown para abrir una issue).")
+    parser.add_argument("--fail-on", dest="fail_on", type=_fail_on(tuple(r["id"] for r in archivo.get("reglas_propias", ()))),
+                        default=(), metavar="REGLAS",
                         help="Sale con código 1 si hay hallazgos en estas reglas (separadas por comas): "
                              f"{', '.join(TODAS)}. Grupos: 'any' (las reglas básicas de siempre), "
                              f"'community' ({len(COMUNIDAD)} reglas de comunidad y actividad) y 'all' (todas).")
@@ -268,6 +295,26 @@ def crear_parser(archivo: Optional[Dict[str, Any]] = None) -> argparse.ArgumentP
                         help="Caché con ETag para las peticiones a la API: una respuesta 304 no gasta cuota.")
     parser.add_argument("--since", dest="since", metavar="PLAZO",
                         help="Audita solo repos con push reciente: 30d, 12w, 6m, 1y o una fecha (2026-01-31).")
+    parser.add_argument("--doctor", dest="doctor", action="store_true",
+                        help="Diagnostica el token: tipo, caducidad, límite de la API y qué funciones podrá usar "
+                             "(--deep, --fix, Pages). No audita nada.")
+    parser.add_argument("--diff", dest="diff", nargs=2, metavar=("ANTES.json", "DESPUES.json"),
+                        help="Compara dos informes JSON (nota global, repos que mejoran o empeoran, hallazgos "
+                             "nuevos y resueltos). No audita nada.")
+    parser.add_argument("--fix-extra", dest="fix_extra", action="store_true",
+                        help="Implica --fix: crea además LICENSE (ver --license), .gitignore, .github/dependabot.yml y un "
+                             "workflow de CI básico, según el lenguaje. Activa --deep.")
+    parser.add_argument("--fix-mode", dest="fix_mode", choices=MODOS_FIX, default="direct",
+                        help="Cómo se escriben los archivos de --fix: direct (commit en la rama principal, por "
+                             "defecto) o pr (una rama y una Pull Request por repo; es lo más seguro).")
+    parser.add_argument("--license", dest="licencia", choices=LICENCIAS, default="mit",
+                        help="Licencia que crea --fix-extra en los repos sin ella (por defecto mit).")
+    parser.add_argument("--scorecard", dest="scorecard", action="store_true",
+                        help="Añade la puntuación de OpenSSF Scorecard (0-10) de cada repo público y la regla "
+                             "low-scorecard (menos de 4).")
+    parser.add_argument("--no-defaults-repo", dest="no_defaults_repo", action="store_true",
+                        help="No tener en cuenta los ficheros de comunidad heredados de tu repositorio .github "
+                             "(SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, plantillas de issues).")
     parser.add_argument("--config", dest="config", metavar="ARCHIVO",
                         help=f"Archivo de configuración TOML (por defecto ./{ARCHIVO_CONFIG} si existe).")
     parser.add_argument("--no-config", dest="no_config", action="store_true",
@@ -298,6 +345,7 @@ def parse_args(args=None) -> Config:
     pre.add_argument("--no-env", action="store_true")
     pre.add_argument("--no-config", action="store_true")
     pre.add_argument("--config")
+    pre.add_argument("-k", "--key", "--token", dest="token_cli")
     previo = pre.parse_known_args(args)[0]
     if not previo.no_env:
         load_dotenv(find_dotenv(usecwd=True))  # busca el .env en el directorio actual
@@ -317,7 +365,7 @@ def parse_args(args=None) -> Config:
     usuario = (parsed.usuario or "").strip()
     if org:
         usuario = org
-    if not usuario:
+    if not usuario and not (parsed.doctor or parsed.diff):
         parser.error("El usuario de GitHub es obligatorio. Usa -u <usuario> (o --org <organización>) "
                      "o define USUARIO_GITHUB.")
     if parsed.min_score is not None and not 0 <= parsed.min_score <= 100:
@@ -337,9 +385,13 @@ def parse_args(args=None) -> Config:
         parser.error("--stale-months debe ser >= 1.")
 
     salida = (parsed.archivo_salida or "").strip() or None
+    if parsed.formato == "trend" and not parsed.history and not (parsed.doctor or parsed.diff):
+        parser.error("-f trend necesita --history CARPETA (guarda cada informe y dibuja la evolución).")
+    if parsed.formato == "trend" and salida == "-":
+        parser.error("-f trend genera una página HTML: usa -o ARCHIVO.html")
     if salida is None and not parsed.inject:
         # con --inject solo se escribe informe si se pide con -o; el formato github va a stdout
-        salida = "-" if parsed.formato == "github" else f"{SALIDA_BASE}.{parsed.formato}"
+        salida = "-" if parsed.formato == "github" else f"{SALIDA_BASE}.{EXTENSION.get(parsed.formato, parsed.formato)}"
 
     return Config(
         usuario=usuario,
@@ -364,13 +416,13 @@ def parse_args(args=None) -> Config:
         baseline=parsed.baseline,
         org=org,
         incluir_privados=parsed.incluir_privados,
-        deep=parsed.deep,
+        deep=parsed.deep or parsed.fix_extra,
         check_links=parsed.check_links,
         min_score=parsed.min_score,
         history=parsed.history,
         lang=parsed.lang,
         webhook=(parsed.webhook or "").strip() or None,
-        fix=parsed.fix,
+        fix=parsed.fix or parsed.fix_extra,
         fix_pages=parsed.fix_pages,
         fix_metadata=parsed.fix_metadata,
         dry_run=parsed.dry_run,
@@ -378,4 +430,13 @@ def parse_args(args=None) -> Config:
         tui=parsed.tui,
         cache=parsed.cache,
         since=parsed.since,
+        doctor=parsed.doctor,
+        diff=tuple(parsed.diff or ()),
+        fix_extra=parsed.fix_extra,
+        fix_mode=parsed.fix_mode,
+        licencia=parsed.licencia,
+        scorecard=parsed.scorecard,
+        repo_defaults=not parsed.no_defaults_repo,
+        reglas_propias=tuple(parsed.reglas_propias) if getattr(parsed, "reglas_propias", None) else (),
+        token_en_cli=bool(previo.token_cli),
     )

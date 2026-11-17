@@ -75,3 +75,36 @@ def comparar(actual: Dict[str, Any], previo: Dict[str, Any], ruta_previa: str) -
         "new_repos": sorted((n for n in ahora if n not in antes), key=str.lower),
         "removed_repos": sorted((n for n in antes if n not in ahora), key=str.lower),
     }
+
+
+def cargar(ruta: str) -> Dict[str, Any]:
+    """Lee un informe JSON de la herramienta (para ``--diff``). Lanza ``ErrorSalida`` si no es válido."""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
+    except OSError as e:
+        raise ErrorSalida(f"No se puede leer '{ruta}': {e}") from e
+    except json.JSONDecodeError as e:
+        raise ErrorSalida(f"'{ruta}' no es un JSON válido: {e}") from e
+    if not isinstance(datos, dict) or not isinstance(datos.get("repos"), list):
+        raise ErrorSalida(f"'{ruta}' no parece un informe de github-pages-auditor (falta 'repos').")
+    return datos
+
+
+def todos(carpeta: str, usuario: str) -> List[Tuple[str, Dict[str, Any]]]:
+    """Todos los informes guardados de ``usuario``, del más antiguo al más reciente (los ilegibles se ignoran)."""
+    prefijo = _seguro(usuario) + "-"
+    try:
+        nombres = sorted(n for n in os.listdir(carpeta) if n.startswith(prefijo) and n.endswith(".json"))
+    except OSError:
+        return []
+    informes = []
+    for nombre in nombres:
+        try:
+            with open(os.path.join(carpeta, nombre), encoding="utf-8") as f:
+                datos = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(datos, dict) and isinstance(datos.get("repos"), list):
+            informes.append((nombre, datos))
+    return informes

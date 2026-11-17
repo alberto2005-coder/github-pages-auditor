@@ -1,0 +1,15 @@
+# Generado por github-pages-auditor: es un punto de partida, ajústalo a tu proyecto.
+name: CI
+on:
+  push:
+    branches: ["{rama}"]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo build
+      - run: cargo test

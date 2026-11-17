@@ -7,6 +7,16 @@ from typing import Any, Optional
 import requests
 
 API = "https://api.github.com"
+NOMBRE_CARPETA = "github-pages-auditor"
+
+
+def resolver_carpeta(valor: str) -> str:
+    """``auto`` = la carpeta de caché del usuario (LOCALAPPDATA en Windows, XDG_CACHE_HOME o ~/.cache); si no, tal cual."""
+    if valor.strip().lower() != "auto":
+        return valor
+    base = (os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_CACHE_HOME")
+            or os.path.join(os.path.expanduser("~"), ".cache"))
+    return os.path.join(base, NOMBRE_CARPETA, "cache")
 
 
 class SesionConCache:

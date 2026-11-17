@@ -8,7 +8,9 @@ from github_pages_auditor import audit
 
 class FakeResponse:
     PAGINA = ('<!doctype html><html lang="es"><head><title>Demo</title><link rel="icon" href="/i.ico">'
+              '<meta name="viewport" content="width=device-width,initial-scale=1">'
               '<meta name="description" content="Demo"><meta property="og:image" content="https://x/i.png">'
+              '<meta property="og:title" content="Demo"><link rel="canonical" href="https://x/">'
               "</head><body>hola</body></html>")
 
     def __init__(self, status_code=200, text=None, json_data=None, headers=None, url="", history=None):
@@ -74,6 +76,7 @@ def entorno_limpio(monkeypatch):
     # Nada de sockets reales: la caducidad TLS se simula en cada test que la necesita.
     monkeypatch.setattr("github_pages_auditor.tls.dias_restantes", lambda *a, **k: None)
     monkeypatch.setattr("github_pages_auditor.dns.apunta_a_github", lambda *a, **k: None)
+    monkeypatch.setattr("github_pages_auditor.secretos.env_versionado", lambda *a, **k: None)
     from github_pages_auditor import linkcheck
     linkcheck._cache.clear()
 

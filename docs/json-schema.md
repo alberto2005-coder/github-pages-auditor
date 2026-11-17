@@ -41,7 +41,7 @@ Weights: basics 30, release 10, community 30, activity 20, security 10; a catego
 Claves = reglas de `--fail-on` / keys = `--fail-on` rules: `missing-readme`, `missing-license`, `missing-gitignore`,
 `missing-description`, `broken-pages`, `analysis-errors` y, desde 1.3.0, las reglas de comunidad `missing-security-policy`,
 `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage` y `stale-repo`
-(solo modo API; no aplican a forks ni archivados) y, con `--deep`, `missing-ci`, `missing-dependabot`, `failing-ci`, `stale-prs` y `no-branch-protection`. `--min-score` añade `min-score` a `fail_on.triggered`. Cada valor es una lista de nombres de repositorio.
+(solo modo API; no aplican a forks ni archivados) y, con `--deep`, `missing-ci`, `missing-dependabot`, `failing-ci`, `stale-prs` y `no-branch-protection`. Desde 1.5.0: `critical-vulnerabilities` (con `--deep`, alertas de Dependabot críticas o altas abiertas), `low-scorecard` (con `--scorecard`, nota de OpenSSF Scorecard < 4) y las reglas propias `custom-*` definidas en el TOML. `--min-score` añade `min-score` a `fail_on.triggered`. Cada valor es una lista de nombres de repositorio.
 Each value is a list of repository names.
 
 ## `repos[]`
@@ -67,14 +67,17 @@ Each value is a list of repository names.
 | `grade` | string \| null | `A` (≥ 90), `B` (≥ 75), `C` (≥ 60), `D` (≥ 40) o `E` |
 | `private` | bool \| null | Repo privado (modo API) / private repo |
 | `default_branch` | string \| null | Rama principal / default branch |
-| `deep` | object | Con `--deep`: `ci`, `ci_status`, `dependabot_yml`, `dependabot_alerts`, `secret_scanning`, `branch_protected`, `contributors`, `open_prs` (`null` = sin dato o sin permisos) |
+| `deep` | object | Con `--deep`: `ci`, `ci_status`, `dependabot_yml`, `dependabot_alerts`, `secret_scanning`, `branch_protected`, `contributors`, `open_prs`, y desde 1.5.0 `critical_alerts` y `high_alerts` (alertas abiertas de Dependabot por gravedad) (`null` = sin dato o sin permisos) |
+| `scorecard` | number \| null | Desde 1.5.0, con `--scorecard`: nota 0-10 de OpenSSF Scorecard / OpenSSF Scorecard score |
+| `inherited_files` | array \| null | Desde 1.5.0: ficheros de comunidad (`security`, `contributing`, `code_of_conduct`, `issue_template`) que el repo no tiene pero hereda de `<usuario>/.github`; cuentan como presentes / community files inherited from `<user>/.github`; they count as present |
+| `custom` | object \| null | Desde 1.5.0: por cada regla propia (`id`), `true` si la ruta existe en el repo, `false` si no; `null` si no se comprobó (modo web) / per custom rule, whether the path exists |
 | `error` | string \| null | Motivo si el repo no se pudo analizar / why the repo could not be analyzed |
 
 ### `repos[].pages`
 
 | Campo / Field | Descripción / Description |
 | --- | --- |
-| `status` | `ok`, `roto` (Pages activadas pero fallan / enabled but failing) o `ninguna` (no hay web / no site) |
+| `status` | `ok`, `roto` (Pages activadas pero fallan / enabled but failing), `construyendo` (desde 1.5.0: GitHub las está reconstruyendo y la web falla un momento / being rebuilt) o `ninguna` (no hay web / no site) |
 | `url` | URL final / final URL |
 | `http_status` | Código HTTP o `null` / HTTP status or `null` |
 | `response_ms` | Tiempo de respuesta en ms / response time in ms |
@@ -83,7 +86,7 @@ Each value is a list of repository names.
 | `broken_links` | Con `--check-links`: lista de `"url (código)"`; `null` si no se comprobó / broken links; `null` if not checked |
 | `size_bytes` | `Content-Length` de la portada o `null` / front page size or `null` |
 | `tls_days_left` | Días hasta que caduca el certificado TLS o `null` / days until the TLS certificate expires or `null` |
-| `warnings` | Avisos que no rompen la web / non-breaking warnings: `lenta`, `sin-html`, `https-no-forzado`, `build-en-curso`, `tls-caduca-pronto` (< 14 días), `sin-404-personalizada`, `sin-meta-description`, `sin-og-image`, `homepage-distinta`, `sin-lang`, `imagenes-sin-alt`, `pagina-pesada` (> 1 MB), `sin-sitemap`, `sin-robots`, `sin-favicon`, `dns-no-apunta-a-github` (dominio propio; con un proxy como Cloudflare puede avisar sin ser un error), `enlaces-rotos` |
+| `warnings` | Avisos que no rompen la web / non-breaking warnings: `lenta`, `sin-html`, `https-no-forzado`, `build-en-curso`, `tls-caduca-pronto` (< 14 días), `sin-404-personalizada`, `sin-meta-description`, `sin-og-image`, `homepage-distinta`, `sin-lang`, `imagenes-sin-alt`, `pagina-pesada` (> 1 MB), `sin-sitemap`, `sin-robots`, `sin-favicon`, `dns-no-apunta-a-github` (dominio propio; con un proxy como Cloudflare puede avisar sin ser un error), `enlaces-rotos`, y desde 1.5.0 `sin-title`, `sin-viewport`, `sin-og-title`, `sin-canonical` y `contenido-mixto` (informativos: no bajan la nota / informational: they do not lower the score) |
 
 ## Ejemplo / Example
 
@@ -91,3 +94,8 @@ Each value is a list of repository names.
 github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 github-pages-auditor -u alberto2005-coder -f json -o - -q | jq -r '.repos[] | select(.pages.status=="roto") | .name'
 ```
+
+## Otros formatos y comandos de la 1.5.0 / Other 1.5.0 formats and commands
+
+- `fixes[]` (con `--fix*`): cada acción tiene `repo`, `action` (`create-file`, `open-pr`, `enforce-https`, `set-description`, `set-topics`), `target`, `status` (`planned`, `applied`, `skipped`, `failed`), `detail` opcional y, con `--fix-mode pr`, `via: "pr"`.
+- `--diff ANTES.json DESPUES.json -f json` escribe el resultado de la comparación: `previous_file`, `score_before`, `score_after`, `delta`, `improved`, `worsened`, `new_repos`, `removed_repos`, `file_before`, `file_after`, `new_findings` y `resolved_findings`.

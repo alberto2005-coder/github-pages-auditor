@@ -98,3 +98,42 @@ En Actions `secrets.GITHUB_TOKEN` basta. Fuera de Actions, un token *fine-graine
 pásalo por la variable `GITHUB_TOKEN`, no con `-k`, para que no quede en el historial.
 In Actions `secrets.GITHUB_TOKEN` is enough. Elsewhere, a fine-grained token with no permissions (public repos only) is enough;
 pass it through the `GITHUB_TOKEN` variable rather than `-k` so it stays out of your shell history.
+
+## 10. Issue semanal con el informe / Weekly report issue
+
+La Action puede abrir (o actualizar) una issue con la nota, los hallazgos y los mejores y peores repos. Necesita `issues: write`:
+
+```yaml
+name: Auditoría semanal
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: alberto2005-coder/github-pages-auditor@master
+        with:
+          user: tu-usuario
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue: "true"
+          args: "--exclude-forks --deep"
+```
+
+The Action can open or update one issue (label `github-pages-auditor`) with the score and findings. It needs `issues: write`.
+
+## 11. Diagnóstico, comparación y tendencia / Doctor, diff and trend
+
+```bash
+github-pages-auditor --doctor                                  # qué puede hacer tu token
+github-pages-auditor --diff antes.json despues.json            # qué ha cambiado entre dos informes
+github-pages-auditor -u tu-usuario --history hist -f trend -o evolucion.html   # gráfica de la nota
+github-pages-auditor -u tu-usuario --fix --fix-extra --fix-mode pr --yes        # arreglos mediante Pull Request
+```
+
+`--fix-mode pr` crea una rama y una Pull Request por repositorio; `Enforce HTTPS`, la descripción y los topics siguen aplicándose directamente porque no son archivos del repositorio.
+

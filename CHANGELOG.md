@@ -2,6 +2,31 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). / Format based on Keep a Changelog.
 
+## [1.5.0] - 2026-11-16
+
+### Añadido / Added
+
+- **Archivos heredados de `<usuario>/.github`:** SECURITY, CONTRIBUTING, CODE_OF_CONDUCT e issue templates que un repo no tiene pero hereda de tu repositorio `.github` cuentan como presentes (ya no salen `missing-*` ni los duplica `--fix`). Nuevo campo JSON `inherited_files` y opción `--no-defaults-repo`. / Community files inherited from your `.github` repo now count as present; new `inherited_files` JSON key and `--no-defaults-repo`.
+- **`--doctor`:** diagnostica el token (tipo, caducidad, límite de peticiones y permisos de lectura de contenido, Pages, Actions, alertas y protección de ramas). / Token diagnosis.
+- **Pages «construyendo»:** si GitHub está reconstruyendo las Pages, la web ya no se marca como rota (`status: construyendo`). / Pages being rebuilt are no longer reported as broken.
+- **Protección de secretos:** tokens y webhooks se ocultan en cualquier mensaje; aviso si el token va en la línea de comandos o si `.env` está en el repo git. / Secret masking and warnings.
+- **API más fiable:** espera y reintenta una vez si el límite se restablece en menos de un minuto, el error indica a qué hora se restablece, y `--cache auto` usa la carpeta de caché del usuario. / Rate-limit wait and `--cache auto`.
+- **`--fix-mode pr`:** una rama y una Pull Request por repo en lugar de un commit en la rama principal. / Fixes via Pull Request.
+- **`--fix-extra` y `--license`:** `LICENSE` (mit, bsd-3-clause, isc, unlicense), `.gitignore`, `.github/dependabot.yml` y CI básico según el lenguaje. / More fix templates.
+- **Pages (SEO):** avisos `sin-title`, `sin-viewport`, `sin-og-title`, `sin-canonical` y `contenido-mixto`; no bajan la nota. / New informational SEO warnings.
+- **Reglas propias** en el TOML (`[[custom_rules]]`, ids `custom-*`, `file-required` o `file-forbidden`). / Custom rules.
+- **`--scorecard`** (OpenSSF Scorecard, regla `low-scorecard`) y regla `critical-vulnerabilities` (`--deep`: alertas de Dependabot críticas o altas). / Scorecard and vulnerability severity.
+- **`-f trend`** (gráfica de la nota con `--history`), **`-f issue`** (resumen en Markdown), **`--diff ANTES.json DESPUES.json`** y la Action con `issue: true`. / Trend chart, issue summary, `--diff`, Action issue.
+
+### Cambiado / Changed
+- Descubribilidad: el README abre con una descripción clara (ES/EN) y preguntas frecuentes; PyPI con más `keywords`, clasificadores y enlaces (`Documentation`, `Changelog`, `JSON schema`, `CI recipes`). / Clearer README intro, FAQ and richer PyPI metadata.
+- `schema_version` sigue en 1: solo se añaden campos (`scorecard`, `custom`, `deep.critical_alerts`, `deep.high_alerts`). / `schema_version` is still 1: additive only.
+- `--fix-extra` activa `--deep` porque necesita saber qué falta (CI y Dependabot). / `--fix-extra` turns on `--deep`.
+- Los avisos de SEO nuevos no puntúan, así la nota sigue siendo comparable con la de la 1.4.0. / New SEO warnings do not affect the score.
+
+### No incluido / Not included
+- GraphQL para acelerar la auditoría: no se ha podido validar contra la API real y queda para una versión posterior. / GraphQL is left for a later release.
+
 ## [1.4.0] - 2026-11-15
 
 ### Corregido / Fixed

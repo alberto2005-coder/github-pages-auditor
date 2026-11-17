@@ -1,7 +1,8 @@
 """Reglas evaluables para ``--fail-on`` (y para la sección ``findings`` del JSON)."""
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .models import RepoInfo
 
@@ -70,43 +71,106 @@ REGLAS_PROFUNDAS: Dict[str, tuple] = {
     "stale-prs": ("Muchas PRs abiertas sin atender", lambda r, c: _propio(r) and (r.prs_abiertas or 0) > 3),
     "no-branch-protection": ("Rama principal sin protección", lambda r, c: _propio(r) and r.rama_protegida is False),
 }
-REGLAS: Dict[str, tuple] = {**REGLAS_BASICAS, **REGLAS_COMUNIDAD, **REGLAS_PROFUNDAS}
+UMBRAL_SCORECARD = 4.0
+# Reglas de la 1.5.0: seguridad (alertas por gravedad y OpenSSF Scorecard).
+REGLAS_SEGURIDAD: Dict[str, tuple] = {
+    "critical-vulnerabilities": ("Alertas de Dependabot críticas o altas abiertas",
+                                 lambda r, c: _propio(r) and ((r.alertas_criticas or 0) + (r.alertas_altas or 0)) > 0),
+    "low-scorecard": ("Puntuación baja en OpenSSF Scorecard",
+                      lambda r, c: _propio(r) and r.scorecard is not None and r.scorecard < UMBRAL_SCORECARD),
+}
+REGLAS: Dict[str, tuple] = {**REGLAS_BASICAS, **REGLAS_COMUNIDAD, **REGLAS_PROFUNDAS, **REGLAS_SEGURIDAD}
 REGLA_ERRORES = "analysis-errors"  # repos que no se pudieron analizar (red)
 BASICAS = tuple(REGLAS_BASICAS) + (REGLA_ERRORES,)  # lo que significa 'any' (como en 1.2)
-COMUNIDAD = tuple(REGLAS_COMUNIDAD) + tuple(REGLAS_PROFUNDAS)
+COMUNIDAD = tuple(REGLAS_COMUNIDAD) + tuple(REGLAS_PROFUNDAS) + tuple(REGLAS_SEGURIDAD)
 TODAS = BASICAS + COMUNIDAD  # 'all'
 
 
-def parsear_fail_on(texto: str) -> Sequence[str]:
-    """'missing-license,broken-pages' | 'any' | 'community' | 'all' -> tupla validada de ids."""
+# --- Reglas propias (1.5.0): ``[[custom_rules]]`` del TOML. Su id siempre empieza por ``custom-``.
+PATRON_ID_PROPIA = re.compile(r"^custom-[a-z0-9]+(-[a-z0-9]+)*$")
+TIPOS_PROPIOS = ("file-required", "file-forbidden")
+MENSAJES_PROPIOS: Dict[str, str] = {}  # id -> descripción (para los informes)
+
+
+def validar_reglas_propias(datos: Any) -> Tuple[dict, ...]:
+    """Valida la lista del TOML y la normaliza a ``({id, path, type, message}, ...)``. Lanza ``ValueError``."""
+    if not isinstance(datos, list) or not all(isinstance(d, dict) for d in datos):
+        raise ValueError("'custom_rules' debe ser una lista de tablas ([[custom_rules]])")
+    reglas, vistos = [], set()
+    for d in datos:
+        extra = set(d) - {"id", "path", "type", "message"}
+        if extra:
+            raise ValueError(f"'custom_rules': claves desconocidas {sorted(extra)}. Válidas: id, path, type, message")
+        rid, ruta = d.get("id"), d.get("path")
+        if not isinstance(rid, str) or not PATRON_ID_PROPIA.match(rid):
+            raise ValueError(f"'custom_rules': el id {rid!r} no es válido; debe empezar por 'custom-' "
+                             "(minúsculas, números y guiones, p. ej. custom-tiene-docs)")
+        if rid in REGLAS or rid in vistos:
+            raise ValueError(f"'custom_rules': el id '{rid}' está repetido")
+        if not isinstance(ruta, str) or not ruta.strip("/ ") or ".." in ruta.split("/"):
+            raise ValueError(f"'custom_rules' '{rid}': 'path' debe ser una ruta relativa (p. ej. docs o .github/CODEOWNERS)")
+        tipo = d.get("type", "file-required")
+        if tipo not in TIPOS_PROPIOS:
+            raise ValueError(f"'custom_rules' '{rid}': 'type' debe ser {' o '.join(TIPOS_PROPIOS)}")
+        mensaje = d.get("message")
+        if mensaje is not None and not isinstance(mensaje, str):
+            raise ValueError(f"'custom_rules' '{rid}': 'message' debe ser texto")
+        vistos.add(rid)
+        reglas.append({"id": rid, "path": ruta.strip(), "type": tipo,
+                       "message": (mensaje or "").strip() or (
+                           f"Falta '{ruta.strip()}'" if tipo == "file-required" else f"No debería existir '{ruta.strip()}'")})
+    return tuple(reglas)
+
+
+def registrar_propias(reglas: Sequence[dict]) -> None:
+    """Guarda las descripciones de las reglas propias para que los informes las muestren."""
+    MENSAJES_PROPIOS.clear()
+    MENSAJES_PROPIOS.update({r["id"]: r["message"] for r in reglas})
+
+
+def parsear_fail_on(texto: str, extras: Sequence[str] = ()) -> Sequence[str]:
+    """'missing-license,broken-pages' | 'any' | 'community' | 'all' -> tupla validada de ids.
+
+    ``extras`` son los ids de las reglas propias (``custom-*``): entran en ``community`` y ``all``.
+    """
     ids = [t.strip().lower() for t in texto.split(",") if t.strip()]
+    validas = TODAS + tuple(extras)
     if "all" in ids:
-        return TODAS
+        return validas
     resultado: List[str] = []
     desconocidas = []
     for i in ids:
         if i == "any":
             resultado += BASICAS
         elif i == "community":
-            resultado += COMUNIDAD
-        elif i in TODAS:
+            resultado += COMUNIDAD + tuple(extras)
+        elif i in validas:
             resultado.append(i)
         else:
             desconocidas.append(i)
     if desconocidas:
         raise ValueError(
             f"reglas desconocidas: {', '.join(desconocidas)}. "
-            f"Válidas: any, community, all, {', '.join(TODAS)}"
+            f"Válidas: any, community, all, {', '.join(validas)}"
         )
     return tuple(dict.fromkeys(resultado))
 
 
+def _incumple(r: RepoInfo, regla: dict) -> bool:
+    presente = (r.custom or {}).get(regla["id"])
+    if presente is None or not _propio(r):
+        return False  # sin dato (modo web o sin permisos) no se afirma nada
+    return (not presente) if regla["type"] == "file-required" else presente
+
+
 def evaluar(repos: List[RepoInfo], stale_meses: int = STALE_MESES_DEFECTO,
-            ahora: Optional[datetime] = None) -> Dict[str, List[str]]:
+            ahora: Optional[datetime] = None, propias: Sequence[dict] = ()) -> Dict[str, List[str]]:
     """Devuelve {regla: [repos con hallazgo]} para TODAS las reglas (listas vacías incluidas)."""
     ctx = Contexto(stale_meses, ahora)
     analizados = [r for r in repos if not r.error]
     resultado = {rid: [r.nombre for r in analizados if pred(r, ctx)] for rid, (_, pred) in REGLAS.items()}
+    for regla in propias:
+        resultado[regla["id"]] = [r.nombre for r in analizados if _incumple(r, regla)]
     resultado[REGLA_ERRORES] = [r.nombre for r in repos if r.error]
     return resultado
 

@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 ESTADO_OK = "ok"        # la web responde y parece una página real
 ESTADO_ROTA = "roto"    # se esperaba una web (Pages activadas) pero falla
 ESTADO_NINGUNA = "ninguna"  # no hay Pages (o no se pueden afirmar)
+ESTADO_CONSTRUYENDO = "construyendo"  # GitHub está reconstruyendo las Pages: no se marca como rota
 
 
 @dataclass
@@ -80,6 +81,12 @@ class RepoInfo:
     prs_abiertas: Optional[int] = None
     ci_estado: Optional[str] = None            # success | failure | otro
     puntuacion: Optional[int] = None           # 0-100 (ver score.py)
+    # 1.5.0
+    alertas_criticas: Optional[int] = None     # alertas abiertas de Dependabot de gravedad crítica
+    alertas_altas: Optional[int] = None        # ... y de gravedad alta
+    scorecard: Optional[float] = None          # OpenSSF Scorecard 0-10 (--scorecard)
+    heredados: Optional[List[str]] = None      # ficheros de comunidad heredados de <usuario>/.github
+    custom: Optional[Dict[str, bool]] = None   # reglas propias: id -> el archivo existe (None = no comprobado)
 
     @property
     def pages_rota(self) -> bool:
@@ -89,7 +96,7 @@ class RepoInfo:
     def pages_viva(self) -> bool:
         if not self.tiene_pages or not self.url_pages:
             return False
-        return self.pages_salud is None or self.pages_salud.ok
+        return self.pages_salud is None or self.pages_salud.ok or self.pages_salud.estado == ESTADO_CONSTRUYENDO
 
 
 @dataclass

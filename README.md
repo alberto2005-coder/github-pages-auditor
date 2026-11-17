@@ -9,6 +9,14 @@
 
 > Desarrollado por **[Alberto Ortiz](https://github.com/alberto2005-coder/)** · [albertoortiz.is-a.dev](https://albertoortiz.is-a.dev/)
 
+**ES:** `github-pages-auditor` es una herramienta de línea de comandos (paquete de Python) que **audita todos los repositorios de un usuario u organización de GitHub**: comprueba si sus **GitHub Pages** funcionan (web rota, HTTPS, certificado TLS, DNS, enlaces rotos), da una **nota de 0 a 100** a cada repo y detecta lo que falta (`LICENSE`, `README`, `SECURITY.md`, CI, Dependabot...). Funciona con o sin token, genera JSON, HTML, CSV y SARIF, devuelve códigos de salida para CI y puede **crear los archivos que faltan mediante Pull Requests**.
+
+**EN:** `github-pages-auditor` is a Python command-line tool that **audits every repository of a GitHub user or organization**: it checks that their **GitHub Pages** sites work (broken site, HTTPS, TLS certificate, DNS, broken links), gives each repo a **0-100 health score** and finds what is missing (`LICENSE`, `README`, `SECURITY.md`, CI, Dependabot...). It works with or without a token, outputs JSON, HTML, CSV and SARIF, returns CI exit codes and can **create the missing files through Pull Requests**.
+
+```bash
+uvx github-pages-auditor -u YOUR_USERNAME        # no install; or: pip install github-pages-auditor
+```
+
 ---
 
 ## Español
@@ -137,7 +145,7 @@ Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente
 | `-w` | `--web`, `--dominio` | Dominio base de las Pages | No (def. `https://<usuario>.github.io`) |
 | `-k` | `--key`, `--token` | Personal Access Token (activa la API) | No |
 | `-o` | `--output` | Archivo del informe; `-` = salida estándar | No (def. `paginas_github.<formato>`) |
-| `-f` | `--format` | `txt`, `json`, `md`, `github` (anotaciones de Actions), `html`, `csv`, `sarif` o `badge` | No (def. `txt`) |
+| `-f` | `--format` | `txt`, `json`, `md`, `github` (anotaciones de Actions), `html`, `csv`, `sarif`, `badge`, `trend` (gráfica de evolución; necesita `--history`) o `issue` (resumen para una issue) | No (def. `txt`) |
 | `--fail-on` | | Reglas (o grupos `any`, `community`, `all`) que provocan código de salida 1 | No |
 | `--exclude-forks` | | Ignora los forks | No |
 | `--exclude-archived` | | Ignora los repositorios archivados | No |
@@ -166,11 +174,18 @@ Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente
 | `--tui` | | Explorador interactivo (extra `[tui]`) | No |
 | `--cache` | | Caché ETag de la API en esta carpeta | No |
 | `--since` | | Solo repos con push reciente: `30d`, `12w`, `6m`, `1y` o fecha | No |
+| `--doctor` | | Diagnostica el token: tipo, caducidad, límite y permisos (no audita) | No |
+| `--diff` | | Compara dos informes JSON: `--diff ANTES.json DESPUES.json` (no audita) | No |
+| `--fix-extra` | | Implica `--fix`: crea además `LICENSE`, `.gitignore`, `dependabot.yml` y un CI básico según el lenguaje | No |
+| `--fix-mode` | | `direct` (def., commit en la rama principal) o `pr` (rama y Pull Request por repo) | No |
+| `--license` | | Licencia que crea `--fix-extra`: `mit` (def.), `bsd-3-clause`, `isc`, `unlicense` | No |
+| `--scorecard` | | Añade la nota de OpenSSF Scorecard (0-10) y la regla `low-scorecard` | No |
 | `-q` | `--quiet` | Sin tablas ni progreso | No |
 | `--workers` | | Hilos en paralelo | No (def. `15`) |
 | `--timeout` | | Timeout por petición, en segundos | No (def. `10`) |
 | `--no-api` | | Fuerza el modo web aunque haya token | No |
 | `--no-color` | | Consola sin colores | No |
+| `--no-defaults-repo` | | No contar como presentes los ficheros heredados de tu repositorio `.github` | No |
 | `--no-env` | | No leer el archivo `.env` | No |
 | `-V` | `--version` | Versión y créditos | No |
 | `-h` | `--help` | Ayuda y créditos | No |
@@ -208,6 +223,30 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 
 **Novedades de la 1.4.0.** Cada repo recibe una **nota de 0 a 100** (`A`-`E`) y el informe una nota global; `--min-score 70` hace fallar el CI si baja de ahí y `--history carpeta` compara con la ejecución anterior. `--deep` añade seguridad, CI y actividad. `--fix` crea SECURITY, CONTRIBUTING, CODE_OF_CONDUCT y la plantilla de issues que falten, `--fix-pages` activa Enforce HTTPS y `--fix-metadata` propone descripción y topics: **por defecto solo muestra el plan; `--yes` lo aplica** (con un token con permiso de escritura, nunca en forks ni archivados). Más recetas en [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md). Instalación alternativa: `pipx install github-pages-auditor` (TUI: `pipx install "github-pages-auditor[tui]"`).
 
+**Novedades de la 1.5.0.**
+- **`--doctor`** diagnostica tu token (tipo, caducidad, límite de peticiones y permisos) para saber qué podrá hacer: `uvx github-pages-auditor --doctor`.
+- **Seguridad de los secretos:** el token y los webhooks se ocultan (`***`) en cualquier mensaje, y se avisa si lo pasas por la línea de comandos o si `.env` está dentro del repositorio git.
+- **Pages en construcción:** justo después de un commit, GitHub reconstruye las Pages; ahora eso se muestra como `construyendo` y no como web rota.
+- **Más fiable con la API:** si se agota el límite y se restablece en menos de un minuto, espera y reintenta; y `--cache auto` usa la carpeta de caché de tu usuario.
+- **`--fix-mode pr`** abre una Pull Request por repo en lugar de escribir en la rama principal; **`--fix-extra`** crea además `LICENSE` (`--license`), `.gitignore`, `.github/dependabot.yml` y un CI básico según el lenguaje.
+- **Pages (SEO y buenas prácticas):** avisos `sin-title`, `sin-viewport`, `sin-og-title`, `sin-canonical` y `contenido-mixto`; son informativos y no bajan la nota.
+- **Reglas propias** en `.github-pages-auditor.toml` (el id empieza por `custom-`; `file-required` o `file-forbidden`; solo modo API):
+
+```toml
+[[custom_rules]]
+id = "custom-tiene-docs"
+path = "docs"
+message = "El repo no tiene carpeta docs"
+
+[[custom_rules]]
+id = "custom-sin-env"
+path = ".env"
+type = "file-forbidden"
+```
+
+- **Seguridad en profundidad:** con `--deep`, la regla `critical-vulnerabilities` cuenta las alertas de Dependabot críticas y altas; con `--scorecard`, la regla `low-scorecard` salta si la nota de OpenSSF Scorecard es menor de 4.
+- **Informes:** `-f trend` dibuja la evolución de la nota con tu carpeta de `--history`; `-f issue` genera el resumen en Markdown para una issue; `--diff ANTES.json DESPUES.json` compara dos informes. La Action puede abrir o actualizar una issue cada semana (ver [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
+
 **Reglas de `--fail-on`:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` (`any` = estas), más las de comunidad (solo modo API; no aplican a forks ni archivados): `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` y, con `--deep`, `missing-ci`, `missing-dependabot`, `failing-ci`, `stale-prs`, `no-branch-protection` (`community` = estas; `all` = todas). Ejemplo: `--fail-on missing-license,broken-pages`.
 
 **`-f github`** escribe anotaciones `::error::`/`::warning::` para el log de Actions; **`--baseline informe.json`** compara con un informe anterior y `--fail-on` solo se dispara por hallazgos nuevos. **Action reutilizable:** `uses: alberto2005-coder/github-pages-auditor@v1.3.0` (ver [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
@@ -221,6 +260,22 @@ Contrato completo del JSON: [docs/json-schema.md](https://github.com/alberto2005
 ```yaml
 - run: uvx github-pages-auditor -u ${{ github.repository_owner }} -k ${{ secrets.GITHUB_TOKEN }} -f json -o report.json --fail-on missing-license,broken-pages
 ```
+
+### Preguntas frecuentes
+
+**¿Cómo compruebo si mis GitHub Pages están rotas?** `uvx github-pages-auditor -u TU_USUARIO --fail-on broken-pages` (con token da la URL real y el estado del build; devuelve código 1 si alguna está rota).
+
+**¿Cómo veo qué repos no tienen licencia, `SECURITY.md` o `CONTRIBUTING.md`?** `uvx github-pages-auditor -u TU_USUARIO --details` o, para una lista exacta, `-f json -o -` y mira `findings`.
+
+**¿Mi repo `.github` con SECURITY/CODE_OF_CONDUCT cuenta?** Sí: los ficheros de comunidad que un repo no tiene pero hereda de `<usuario>/.github` cuentan como presentes (campo JSON `inherited_files`); `--no-defaults-repo` lo desactiva.
+
+**¿Cómo audito la seguridad de mis repos (Dependabot, ramas protegidas, OpenSSF Scorecard)?** Con token: `--deep --scorecard`; los hallazgos son `no-branch-protection`, `critical-vulnerabilities` y `low-scorecard`.
+
+**¿Cómo creo los archivos que faltan sin tocar la rama principal?** `--fix --fix-extra --fix-mode pr --yes`: abre una Pull Request por repo con `LICENSE`, `SECURITY.md`, `.gitignore`, CI básico, etc. Sin `--yes` solo muestra el plan.
+
+**¿Cómo lo uso en GitHub Actions?** Con la Action del repo (`uses: alberto2005-coder/github-pages-auditor@master`); recetas en [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md), incluida una issue semanal con el informe.
+
+**¿Cómo sigo la evolución de la nota?** `--history carpeta` guarda cada informe y `-f trend -o evolucion.html` dibuja la gráfica.
 
 ### Pruebas automatizadas
 
@@ -411,7 +466,7 @@ A fine-grained token with no permissions (public repositories only) is enough.
 | `-w` | `--web`, `--dominio` | Base domain of the Pages site | No (default `https://<user>.github.io`) |
 | `-k` | `--key`, `--token` | Personal Access Token (enables the API) | No |
 | `-o` | `--output` | Report file; `-` = standard output | No (default `paginas_github.<format>`) |
-| `-f` | `--format` | `txt`, `json` or `md` | No (default `txt`) |
+| `-f` | `--format` | `txt`, `json`, `md`, `github` (Actions annotations), `html`, `csv`, `sarif`, `badge`, `trend` (score evolution chart; needs `--history`) or `issue` (issue-ready summary) | No (default `txt`) |
 | `--fail-on` | | Rules (or groups `any`, `community`, `all`) that cause exit code 1 | No |
 | `--exclude-forks` | | Ignore forks | No |
 | `--exclude-archived` | | Ignore archived repositories | No |
@@ -440,11 +495,18 @@ A fine-grained token with no permissions (public repositories only) is enough.
 | `--tui` | | Interactive explorer (`[tui]` extra) | No |
 | `--cache` | | ETag cache for the API in this folder | No |
 | `--since` | | Only repos with a recent push: `30d`, `12w`, `6m`, `1y` or a date | No |
+| `--doctor` | | Diagnose the token: type, expiry, rate limit and permissions (no audit) | No |
+| `--diff` | | Compare two JSON reports: `--diff BEFORE.json AFTER.json` (no audit) | No |
+| `--fix-extra` | | Implies `--fix`: also creates `LICENSE`, `.gitignore`, `dependabot.yml` and a basic CI by language | No |
+| `--fix-mode` | | `direct` (default, commit to the default branch) or `pr` (a branch and Pull Request per repo) | No |
+| `--license` | | License created by `--fix-extra`: `mit` (default), `bsd-3-clause`, `isc`, `unlicense` | No |
+| `--scorecard` | | Adds the OpenSSF Scorecard score (0-10) and the `low-scorecard` rule | No |
 | `-q` | `--quiet` | No tables or progress | No |
 | `--workers` | | Parallel threads | No (default `15`) |
 | `--timeout` | | Per-request timeout, in seconds | No (default `10`) |
 | `--no-api` | | Force web mode even with a token | No |
 | `--no-color` | | Colourless console output | No |
+| `--no-defaults-repo` | | Do not count files inherited from your `.github` repository as present | No |
 | `--no-env` | | Do not read the `.env` file | No |
 | `-V` | `--version` | Version and credits | No |
 | `-h` | `--help` | Help and credits | No |
@@ -481,6 +543,17 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 
 **What's new in 1.4.0.** Every repo gets a **0-100 score** (`A`-`E`) and the report an overall score; `--min-score 70` fails CI below it and `--history folder` compares with the previous run. `--deep` adds security, CI and activity. `--fix` creates any missing SECURITY, CONTRIBUTING, CODE_OF_CONDUCT and issue template, `--fix-pages` turns on Enforce HTTPS and `--fix-metadata` suggests a description and topics: **by default it only prints the plan; `--yes` applies it** (with a token that can write, never on forks or archived repos). More recipes in [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md). Alternative install: `pipx install github-pages-auditor` (TUI: `pipx install "github-pages-auditor[tui]"`).
 
+**What's new in 1.5.0.**
+- **`--doctor`** diagnoses your token (type, expiry, rate limit and permissions) so you know what it can do: `uvx github-pages-auditor --doctor`.
+- **Secret protection:** the token and webhooks are masked (`***`) in every message, and you are warned if you pass it on the command line or if `.env` is inside the git repository.
+- **Pages being built:** right after a commit GitHub rebuilds Pages; that now shows as `construyendo` (building) instead of a broken site.
+- **More reliable with the API:** if the rate limit resets in under a minute it waits and retries once; `--cache auto` uses your user cache folder.
+- **`--fix-mode pr`** opens one Pull Request per repo instead of writing to the default branch; **`--fix-extra`** also creates `LICENSE` (`--license`), `.gitignore`, `.github/dependabot.yml` and a basic CI by language.
+- **Pages (SEO and best practices):** new warnings `sin-title`, `sin-viewport`, `sin-og-title`, `sin-canonical` and `contenido-mixto`; they are informational and do not lower the score.
+- **Custom rules** in `.github-pages-auditor.toml` (the id starts with `custom-`; `file-required` or `file-forbidden`; API mode only), as in the example in the Spanish section above.
+- **Deeper security:** with `--deep`, the `critical-vulnerabilities` rule counts open critical and high Dependabot alerts; with `--scorecard`, the `low-scorecard` rule fires when the OpenSSF Scorecard score is below 4.
+- **Reports:** `-f trend` draws the score evolution from your `--history` folder; `-f issue` writes the issue-ready Markdown summary; `--diff BEFORE.json AFTER.json` compares two reports. The Action can open or update an issue every week (see [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
+
 **`--fail-on` rules:** `missing-readme`, `missing-license`, `missing-gitignore`, `missing-description`, `broken-pages`, `analysis-errors` (`any` = these), plus community rules (API mode only; not applied to forks or archived repos): `missing-security-policy`, `missing-contributing`, `missing-code-of-conduct`, `missing-issue-template`, `missing-topics`, `missing-homepage`, `stale-repo` and, with `--deep`, `missing-ci`, `missing-dependabot`, `failing-ci`, `stale-prs`, `no-branch-protection` (`community` = these; `all` = everything). Example: `--fail-on missing-license,broken-pages`.
 
 **`-f github`** writes `::error::`/`::warning::` annotations for the Actions log; **`--baseline report.json`** compares with a previous report so `--fail-on` only triggers on NEW findings. **Reusable Action:** `uses: alberto2005-coder/github-pages-auditor@v1.3.0` (see [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
@@ -494,6 +567,22 @@ Full JSON contract: [docs/json-schema.md](https://github.com/alberto2005-coder/g
 ```yaml
 - run: uvx github-pages-auditor -u ${{ github.repository_owner }} -k ${{ secrets.GITHUB_TOKEN }} -f json -o report.json --fail-on missing-license,broken-pages
 ```
+
+### FAQ
+
+**How do I check whether my GitHub Pages sites are broken?** `uvx github-pages-auditor -u YOUR_USERNAME --fail-on broken-pages` (with a token it uses the real URL and build status; it exits with code 1 if any site is broken).
+
+**How do I list repos without a license, `SECURITY.md` or `CONTRIBUTING.md`?** `uvx github-pages-auditor -u YOUR_USERNAME --details`, or `-f json -o -` and read `findings` for an exact list.
+
+**Do files from my `.github` repo count?** Yes: community files a repo lacks but inherits from `<user>/.github` count as present (JSON `inherited_files`); `--no-defaults-repo` turns this off.
+
+**How do I audit repo security (Dependabot, branch protection, OpenSSF Scorecard)?** With a token: `--deep --scorecard`; the findings are `no-branch-protection`, `critical-vulnerabilities` and `low-scorecard`.
+
+**How do I create missing files without touching the default branch?** `--fix --fix-extra --fix-mode pr --yes` opens one Pull Request per repo with `LICENSE`, `SECURITY.md`, `.gitignore`, a basic CI, etc. Without `--yes` it only prints the plan.
+
+**How do I use it in GitHub Actions?** With the repo's Action (`uses: alberto2005-coder/github-pages-auditor@master`); recipes in [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md), including a weekly report issue.
+
+**How do I track the score over time?** `--history folder` saves every report and `-f trend -o evolution.html` draws the chart.
 
 ### Automated tests
 
