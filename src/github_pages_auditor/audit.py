@@ -1,14 +1,15 @@
 import fnmatch
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from typing import List, Optional, Sequence
 
 import requests
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
 
-from . import scorecard
+from . import dependencias, readme, scorecard
 from .cache import SesionConCache, resolver_carpeta
-from .config import Config, parsear_since
+from .config import Config, normalizar_dominio, parsear_since
 from .errors import ErrorAuditoria
 from .github_api import GitHubAPIProvider
 from .github_web import GitHubWebProvider
@@ -47,11 +48,30 @@ def crear_proveedor(config: Config, session):
     if config.usa_api:
         return (GitHubAPIProvider(config.usuario, config.dominio_web, session, token=config.github_token,
                                   org=bool(config.org), privados=config.incluir_privados, deep=config.deep,
-                                  check_links=config.check_links, reglas_propias=config.reglas_propias,
-                                  repo_defaults=config.repo_defaults),
+                                  check_links=config.check_links, crawl=config.crawl, reglas_propias=config.reglas_propias,
+                                  repo_defaults=config.repo_defaults,
+                                  graphql=config.graphql),
                 t("prov.api"))
-    return (GitHubWebProvider(config.usuario, config.dominio_web, session, check_links=config.check_links),
+    return (GitHubWebProvider(config.usuario, config.dominio_web, session, check_links=config.check_links,
+                                 crawl=config.crawl),
             t("prov.web"))
+
+
+def _varias_cuentas(config: Config, session, console) -> AuditReport:
+    """Audita cada cuenta de ``-u a,b`` y junta los repos en un solo informe (``cuenta/repo``)."""
+    session = session or crear_sesion_http(timeout=config.timeout)
+    console = console or Console(no_color=config.sin_color)
+    unido: Optional[AuditReport] = None
+    for cuenta in config.usuarios:
+        parcial = ejecutar_auditoria(replace(config, usuario=cuenta, usuarios=(), dominio_web=normalizar_dominio(None, cuenta)),
+                                     session, console)
+        for repo in parcial.repos:
+            repo.propietario, repo.nombre = cuenta, f"{cuenta}/{repo.nombre}"
+        if unido is None:
+            unido = AuditReport(usuario=config.usuario, dominio_base="", proveedor=parcial.proveedor, modo=parcial.modo)
+        unido.repos += parcial.repos
+    assert unido is not None
+    return unido
 
 
 def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] = None) -> AuditReport:
@@ -59,6 +79,8 @@ def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] 
     sin tumbar el resto; los errores globales (usuario inexistente, token inválido,
     límite de tasa) se propagan como ``ErrorAuditoria``.
     """
+    if len(config.usuarios) > 1:
+        return _varias_cuentas(config, session, console)
     session = session or crear_sesion_http(timeout=config.timeout)
     if config.cache:
         session = SesionConCache(session, resolver_carpeta(config.cache))
@@ -94,9 +116,19 @@ def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] 
     if not repos_base:
         return informe
 
+    if config.graphql and config.usa_api and hasattr(provider, "precargar_graphql"):
+        provider.precargar_graphql([r.nombre for r in repos_base if not r.es_fork and not r.esta_archivado])
+
     def trabajo(repo: RepoInfo) -> RepoInfo:
         try:
             repo = provider.enriquecer_repo(repo)
+            if config.usa_api and not repo.es_fork and not repo.esta_archivado:
+                if config.readme_quality and repo.tiene_readme:
+                    texto = provider.leer_readme(repo)
+                    if texto is not None:
+                        repo.readme_problemas = readme.analizar(texto)
+                if config.dep_licenses:
+                    repo.deps_copyleft = dependencias.copyleft(session, lambda ruta: provider.leer_archivo(repo, ruta))
             if config.scorecard:
                 repo.scorecard = scorecard.obtener(session, config.usuario, repo)
             return repo
@@ -119,5 +151,7 @@ def ejecutar_auditoria(config: Config, session=None, console: Optional[Console] 
                 executor.shutdown(wait=False, cancel_futures=True)
                 raise
 
+    if isinstance(session, SesionConCache):
+        informe.cache_aciertos, informe.cache_peticiones = session.aciertos, session.peticiones
     informe.repos = ordenar(resultados, config.orden)  # por defecto, el orden del listado: informe determinista
     return informe

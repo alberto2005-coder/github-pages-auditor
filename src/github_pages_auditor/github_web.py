@@ -59,8 +59,10 @@ def parsear_listado(html: str, usuario: str) -> List[Dict[str, Any]]:
 
 
 class GitHubWebProvider:
-    def __init__(self, usuario: str, dominio: str, session: requests.Session, check_links: bool = False):
+    def __init__(self, usuario: str, dominio: str, session: requests.Session, check_links: bool = False,
+                 crawl: bool = False):
         self.check_links = check_links
+        self.crawl = crawl
         self.usuario = usuario
         self.dominio = dominio
         self.session = session
@@ -117,6 +119,6 @@ class GitHubWebProvider:
         repo.tiene_pages = salud.ok
         repo.url_pages = salud.url_final if salud.ok else None
         if salud.ok:
-            pages_health.profundizar(self.session, salud, comprobar_enlaces=self.check_links)
+            pages_health.profundizar(self.session, salud, comprobar_enlaces=self.check_links, rastrear=self.crawl)
         repo.pages_salud = salud if salud.ok else None
         return repo

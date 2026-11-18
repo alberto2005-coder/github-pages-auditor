@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import NOMBRE_PROGRAMA, URL_GITHUB, __version__
 from .i18n import t
-from .models import AuditReport
+from .models import AuditReport, ruta_github
 from .rules import REGLA_ERRORES
 from .score import nota, ranking
 
@@ -155,7 +155,7 @@ def a_html(report: AuditReport, hallazgos: Dict[str, List[str]], lang: str = "es
         s = r.pages_salud
         letra = nota(r.puntuacion)
         etiquetas = "".join(f'<span class="tag">{_e(x)}</span>' for x in por_repo.get(r.nombre, []))
-        enlace = f'<a href="https://github.com/{_e(report.usuario)}/{_e(r.nombre)}" rel="noopener">{_e(r.nombre)}</a>'
+        enlace = f'<a href="https://github.com/{_e(ruta_github(r, report.usuario))}" rel="noopener">{_e(r.nombre)}</a>'
         pagina = (f'<a href="{_e(r.url_pages)}" rel="noopener">{_e(s.estado if s else "ok")}</a>'
                   if r.url_pages and r.url_pages.startswith(("http://", "https://")) else _e(s.estado if s else ""))
         filas.append(

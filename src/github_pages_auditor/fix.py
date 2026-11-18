@@ -256,6 +256,9 @@ class _FalloPr(Exception):
 def ejecutar(config, report: AuditReport, session, headers: dict, hallazgos=None) -> List[dict]:
     """Planea (y con ``--yes`` sin ``--dry-run`` aplica) los arreglos pedidos. Devuelve la lista de acciones."""
     hallazgos = hallazgos if hallazgos is not None else evaluar(report.repos)
+    solo = tuple(getattr(config, "fix_only", ()) or ())
+    if solo:  # --fix-only: las reglas de archivos que no se eligieron quedan fuera del plan
+        hallazgos = {k: ([] if k in {**PLANTILLAS, **EXTRAS} and k not in solo else v) for k, v in hallazgos.items()}
     modo = getattr(config, "fix_mode", "direct")
     arreglos = Arreglos(report.usuario, session, headers, repos={r.nombre: r for r in report.repos},
                         licencia=getattr(config, "licencia", "mit"), modo=modo)

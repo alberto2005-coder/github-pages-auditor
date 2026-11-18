@@ -37,7 +37,8 @@ _VIEWPORT = re.compile(r"<meta\b[^>]*\bname\s*=\s*[\"']viewport[\"']", re.IGNORE
 _CANONICAL = re.compile(r"<link\b[^>]*\brel\s*=\s*[\"']canonical[\"']", re.IGNORECASE)
 _MIXTO = re.compile(r"<(?:img|script|iframe|source|video|audio|link)\b[^>]*\b(?:src|href)\s*=\s*[\"']http://", re.IGNORECASE)
 # Avisos de SEO y buenas prácticas añadidos en la 1.5.0: informan, pero no bajan la nota (así el histórico es comparable).
-AVISOS_SIN_PUNTOS = frozenset({"sin-title", "sin-viewport", "sin-og-title", "sin-canonical", "contenido-mixto"})
+AVISOS_SIN_PUNTOS = frozenset({"sin-title", "sin-viewport", "sin-og-title", "sin-canonical", "contenido-mixto",
+                              "paginas-internas-rotas", "sitemap-invalido", "sitemap-urls-rotas"})
 
 
 def _leer_inicio(response) -> str:
@@ -157,7 +158,7 @@ def _existe(session, url: str) -> Optional[bool]:
         return None
 
 
-def profundizar(session, salud: PagesHealth, comprobar_enlaces: bool = False) -> None:
+def profundizar(session, salud: PagesHealth, comprobar_enlaces: bool = False, rastrear: bool = False) -> None:
     """Comprobaciones extra de una web que ya responde bien.
 
     TLS, ``404.html``, ``sitemap.xml``, ``robots.txt``, favicon, DNS del dominio propio y, si se pide,
@@ -181,6 +182,12 @@ def profundizar(session, salud: PagesHealth, comprobar_enlaces: bool = False) ->
             salud.avisos.append(aviso)
     if salud.icono_en_html is False and _existe(session, raiz + "favicon.ico") is False:
         salud.avisos.append("sin-favicon")
+    if rastrear:
+        salud.avisos.extend(linkcheck.validar_sitemap(session, raiz + "sitemap.xml"))
+        if cuerpo:
+            salud.paginas_rotas = linkcheck.rastrear(session, cuerpo, raiz)
+            if salud.paginas_rotas:
+                salud.avisos.append("paginas-internas-rotas")
     if comprobar_enlaces and cuerpo:
         salud.enlaces_rotos = linkcheck.enlaces_rotos(session, cuerpo, raiz)
         if salud.enlaces_rotos:

@@ -6,7 +6,7 @@ from rich.console import Console
 
 from . import audit as auditoria
 from . import baseline as base
-from . import creditos, diff, doctor, fix, history, notify, salidas, secretos
+from . import cache, creditos, diff, doctor, fix, history, init, notify, salidas, secretos
 from .audit import ejecutar_auditoria
 from .config import Config, parse_args
 from .errors import ErrorAuditoria
@@ -131,6 +131,24 @@ def main(args=None) -> int:
         err.print(f"[yellow]{t('warn.env_tracked')}[/yellow]")
     if config.diff:
         return _ejecutar_diff(config, console, err)
+    if config.cache_clear:
+        carpeta = cache.resolver_carpeta(config.cache or "auto")
+        console.print(t("cache_cleared", count=cache.borrar(carpeta), path=carpeta), highlight=False, markup=False)
+        return EXIT_OK
+    if config.notify_test:
+        if config.webhook and notify.probar(config.webhook):
+            console.print(f"[bold green]{t('notify_test_ok')}[/bold green]")
+            return EXIT_OK
+        err.print(f"[bold red]{t('notify_test_fail')}[/bold red]")
+        return EXIT_ERROR
+    if config.init:
+        try:
+            ruta = init.crear(usuario=config.usuario or None, sobrescribir=config.yes)
+        except (FileExistsError, OSError) as e:
+            err.print(f"[bold red]{t('init.exists', path=getattr(e, 'filename', None) or e)}[/bold red]")
+            return EXIT_ERROR
+        console.print(f"[bold green]{t('init.created', path=ruta)}[/bold green]", highlight=False)
+        return EXIT_OK
     if config.doctor:
         return _ejecutar_doctor(config, Console(no_color=config.sin_color))
 
@@ -209,6 +227,13 @@ def main(args=None) -> int:
             err.print(f"[bold red]❌ {_seguro(e, config)}[/bold red]")
             return EXIT_ERROR
 
+    if arreglos is not None and config.fix_log:
+        try:
+            with open(config.fix_log, "w", encoding="utf-8", newline="\n") as f:
+                json.dump({"user": config.usuario, "applied": bool(config.yes and not config.dry_run),
+                           "actions": arreglos}, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            err.print(f"[bold red]❌ --fix-log: {_seguro(e, config)}[/bold red]")
     renderizar_consola(reporte, console=console, hallazgos=hallazgos, detalles=config.details, historial=historial)
     if arreglos is not None:
         aplicados = config.yes and not config.dry_run
@@ -249,9 +274,13 @@ def main(args=None) -> int:
         err.print(f"[bold red]❌ No se pudo escribir la salida: {e}[/bold red]")
         return EXIT_ERROR
 
-    if config.webhook and notify.avisar(config.webhook, reporte.usuario, reporte.puntuacion, nuevos_para_aviso):
+    if config.webhook and notify.avisar(config.webhook, reporte.usuario, reporte.puntuacion, nuevos_para_aviso,
+                                        siempre=config.notify_on == "always"):
         console.print("[dim]🔔 Aviso enviado al webhook[/dim]")
 
+    if reporte.cache_peticiones:
+        console.print(f"[dim]{t('cache_stats', hits=reporte.cache_aciertos, total=reporte.cache_peticiones)}[/dim]",
+                      highlight=False)
     console.print(f"[dim]{creditos()}[/dim]", highlight=False, soft_wrap=True)
     if activadas:
         err.print(f"[bold red]❌ --fail-on disparado por: {', '.join(activadas)}[/bold red]")

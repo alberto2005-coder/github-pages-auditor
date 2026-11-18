@@ -165,6 +165,14 @@ Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente
 | `--deep` | | Con token: seguridad, CI, contribuidores y PRs | No |
 | `--org` | | Audita una organización en lugar de un usuario | No |
 | `--include-private` | | Con token: incluye tus repos privados | No |
+| `--readme-quality` | | Revisa el README (instalación, uso, longitud): regla `weak-readme` | No |
+| `--dep-licenses` | | Busca dependencias GPL/AGPL: regla `copyleft-dependency` | No |
+| `-u a,b` | | Varias cuentas separadas por comas en un solo informe (repos como `cuenta/repo`; sin `--org` ni `--fix*`) | No |
+| `--graphql` | | (Experimental) Lista la raíz de los repos con GraphQL en lotes: menos peticiones; si falla, usa REST | No |
+| `--init` | | Crea un `.github-pages-auditor.toml` de partida (con `--yes` lo sobrescribe) | No |
+| `--fix-only` | | Con `--fix`: solo las reglas indicadas (p. ej. `missing-license,missing-security-policy`) | No |
+| `--fix-log` | | Con `--fix*`: guarda en un JSON lo planeado o aplicado | No |
+| `--crawl` | | Rastrea hasta 10 páginas internas de cada web y valida su `sitemap.xml` | No |
 | `--check-links` | | Comprueba los enlaces de la portada de cada web | No |
 | `--fix` | | Crea los archivos de comunidad que falten (plantea; `--yes` aplica) | No |
 | `--fix-pages` | | Activa Enforce HTTPS donde falte | No |
@@ -173,6 +181,9 @@ Un token *fine-grained* sin permisos (solo repositorios públicos) es suficiente
 | `--yes` | | Con `--fix*`, aplica los cambios | No |
 | `--tui` | | Explorador interactivo (extra `[tui]`) | No |
 | `--cache` | | Caché ETag de la API en esta carpeta | No |
+| `--cache-clear` | | Borra la caché ETag y sale | No |
+| `--notify-on` | | Con `--notify-webhook`: `new` (por defecto) o `always` (también si no hay nada nuevo) | No |
+| `--notify-test` | | Envía un mensaje de prueba al webhook y sale | No |
 | `--since` | | Solo repos con push reciente: `30d`, `12w`, `6m`, `1y` o fecha | No |
 | `--doctor` | | Diagnostica el token: tipo, caducidad, límite y permisos (no audita) | No |
 | `--diff` | | Compara dos informes JSON: `--diff ANTES.json DESPUES.json` (no audita) | No |
@@ -230,7 +241,7 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 - **Más fiable con la API:** si se agota el límite y se restablece en menos de un minuto, espera y reintenta; y `--cache auto` usa la carpeta de caché de tu usuario.
 - **`--fix-mode pr`** abre una Pull Request por repo en lugar de escribir en la rama principal; **`--fix-extra`** crea además `LICENSE` (`--license`), `.gitignore`, `.github/dependabot.yml` y un CI básico según el lenguaje.
 - **Pages (SEO y buenas prácticas):** avisos `sin-title`, `sin-viewport`, `sin-og-title`, `sin-canonical` y `contenido-mixto`; son informativos y no bajan la nota.
-- **Reglas propias** en `.github-pages-auditor.toml` (el id empieza por `custom-`; `file-required` o `file-forbidden`; solo modo API):
+- **Reglas propias** en `.github-pages-auditor.toml` (el id empieza por `custom-`; `file-required`, `file-forbidden` y, desde 1.6.0, `content-required` y `content-forbidden`; solo modo API):
 
 ```toml
 [[custom_rules]]
@@ -242,6 +253,19 @@ message = "El repo no tiene carpeta docs"
 id = "custom-sin-env"
 path = ".env"
 type = "file-forbidden"
+
+# Desde 1.6.0: reglas de contenido (con `contains` o `regex`)
+[[custom_rules]]
+id = "custom-readme-instala"
+path = "README.md"
+type = "content-required"
+contains = "pip install"
+
+[[custom_rules]]
+id = "custom-sin-todo"
+path = "src/main.py"
+type = "content-forbidden"
+regex = "TODO|FIXME"
 ```
 
 - **Seguridad en profundidad:** con `--deep`, la regla `critical-vulnerabilities` cuenta las alertas de Dependabot críticas y altas; con `--scorecard`, la regla `low-scorecard` salta si la nota de OpenSSF Scorecard es menor de 4.
@@ -486,6 +510,14 @@ A fine-grained token with no permissions (public repositories only) is enough.
 | `--deep` | | With token: security, CI, contributors and PRs | No |
 | `--org` | | Audit an organization instead of a user | No |
 | `--include-private` | | With token: include your private repos | No |
+| `--readme-quality` | | Check the README (install, usage, length): `weak-readme` rule | No |
+| `--dep-licenses` | | Look for GPL/AGPL dependencies: `copyleft-dependency` rule | No |
+| `-u a,b` | | Several accounts separated by commas in one report (repos as `account/repo`; no `--org` or `--fix*`) | No |
+| `--graphql` | | (Experimental) List repo roots with GraphQL in batches: fewer requests; falls back to REST on failure | No |
+| `--init` | | Create a starter `.github-pages-auditor.toml` (`--yes` overwrites it) | No |
+| `--fix-only` | | With `--fix`: only the listed rules (e.g. `missing-license,missing-security-policy`) | No |
+| `--fix-log` | | With `--fix*`: save what was planned or applied to a JSON file | No |
+| `--crawl` | | Crawl up to 10 internal pages of each site and validate its `sitemap.xml` | No |
 | `--check-links` | | Check the links on each site's front page | No |
 | `--fix` | | Create missing community files (plans; `--yes` applies) | No |
 | `--fix-pages` | | Turn on Enforce HTTPS where missing | No |
@@ -494,6 +526,9 @@ A fine-grained token with no permissions (public repositories only) is enough.
 | `--yes` | | With `--fix*`, applies the changes | No |
 | `--tui` | | Interactive explorer (`[tui]` extra) | No |
 | `--cache` | | ETag cache for the API in this folder | No |
+| `--cache-clear` | | Delete the ETag cache and exit | No |
+| `--notify-on` | | With `--notify-webhook`: `new` (default) or `always` (also when nothing is new) | No |
+| `--notify-test` | | Send a test message to the webhook and exit | No |
 | `--since` | | Only repos with a recent push: `30d`, `12w`, `6m`, `1y` or a date | No |
 | `--doctor` | | Diagnose the token: type, expiry, rate limit and permissions (no audit) | No |
 | `--diff` | | Compare two JSON reports: `--diff BEFORE.json AFTER.json` (no audit) | No |
@@ -550,7 +585,7 @@ uvx github-pages-auditor -u alberto2005-coder -f json -o - -q | jq '.summary'
 - **More reliable with the API:** if the rate limit resets in under a minute it waits and retries once; `--cache auto` uses your user cache folder.
 - **`--fix-mode pr`** opens one Pull Request per repo instead of writing to the default branch; **`--fix-extra`** also creates `LICENSE` (`--license`), `.gitignore`, `.github/dependabot.yml` and a basic CI by language.
 - **Pages (SEO and best practices):** new warnings `sin-title`, `sin-viewport`, `sin-og-title`, `sin-canonical` and `contenido-mixto`; they are informational and do not lower the score.
-- **Custom rules** in `.github-pages-auditor.toml` (the id starts with `custom-`; `file-required` or `file-forbidden`; API mode only), as in the example in the Spanish section above.
+- **Custom rules** in `.github-pages-auditor.toml` (the id starts with `custom-`; `file-required`, `file-forbidden` and, since 1.6.0, `content-required` and `content-forbidden`; API mode only), as in the example in the Spanish section above.
 - **Deeper security:** with `--deep`, the `critical-vulnerabilities` rule counts open critical and high Dependabot alerts; with `--scorecard`, the `low-scorecard` rule fires when the OpenSSF Scorecard score is below 4.
 - **Reports:** `-f trend` draws the score evolution from your `--history` folder; `-f issue` writes the issue-ready Markdown summary; `--diff BEFORE.json AFTER.json` compares two reports. The Action can open or update an issue every week (see [docs/ci.md](https://github.com/alberto2005-coder/github-pages-auditor/blob/master/docs/ci.md)).
 

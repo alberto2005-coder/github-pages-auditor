@@ -21,6 +21,7 @@ class PagesHealth:
     avisos: List[str] = field(default_factory=list)     # avisos: funciona pero mejorable
     tls_dias: Optional[int] = None  # días hasta que caduca el certificado (None = no comprobado)
     enlaces_rotos: Optional[List[str]] = None  # solo con --check-links (None = no comprobado)
+    paginas_rotas: Optional[List[str]] = None  # solo con --crawl (None = no comprobado)
     peso_bytes: Optional[int] = None  # tamaño del HTML de la portada (Content-Length)
     icono_en_html: Optional[bool] = field(default=None, repr=False)  # uso interno
     cuerpo: Optional[str] = field(default=None, repr=False)  # uso interno: se descarta en profundizar()
@@ -85,6 +86,9 @@ class RepoInfo:
     alertas_criticas: Optional[int] = None     # alertas abiertas de Dependabot de gravedad crítica
     alertas_altas: Optional[int] = None        # ... y de gravedad alta
     scorecard: Optional[float] = None          # OpenSSF Scorecard 0-10 (--scorecard)
+    readme_problemas: Optional[List[str]] = None  # --readme-quality: readme-corto, sin-instalacion, sin-uso
+    deps_copyleft: Optional[List[str]] = None     # --dep-licenses: dependencias GPL/AGPL (None = no comprobado)
+    propietario: Optional[str] = None  # solo con varias cuentas: de quién es el repo (nombre = "cuenta/repo")
     heredados: Optional[List[str]] = None      # ficheros de comunidad heredados de <usuario>/.github
     custom: Optional[Dict[str, bool]] = None   # reglas propias: id -> el archivo existe (None = no comprobado)
 
@@ -99,6 +103,11 @@ class RepoInfo:
         return self.pages_salud is None or self.pages_salud.ok or self.pages_salud.estado == ESTADO_CONSTRUYENDO
 
 
+def ruta_github(repo: "RepoInfo", usuario: str) -> str:
+    """``cuenta/repo`` para construir enlaces (con varias cuentas el nombre ya la incluye)."""
+    return repo.nombre if repo.propietario else f"{usuario}/{repo.nombre}"
+
+
 @dataclass
 class AuditReport:
     usuario: str
@@ -106,6 +115,8 @@ class AuditReport:
     proveedor: str
     repos: List[RepoInfo] = field(default_factory=list)
     modo: str = "web"  # "api" | "web" (identificador estable para el JSON)
+    cache_aciertos: Optional[int] = None    # --cache: peticiones respondidas con 304 (no gastan cuota)
+    cache_peticiones: Optional[int] = None  # --cache: peticiones a la API que pasaron por la caché
     puntuacion: Optional[int] = None  # nota global 0-100 (ver score.py)
 
     @property

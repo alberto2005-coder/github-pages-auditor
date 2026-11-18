@@ -46,3 +46,50 @@ def enlaces_rotos(session, cuerpo: str, base: str) -> List[str]:
         elif codigo >= 400 and codigo not in NO_CONCLUYENTES:
             rotos.append(f"{url} ({codigo})")
     return rotos
+
+
+MAX_PAGINAS_INTERNAS = 10
+MAX_URLS_SITEMAP = 10
+_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.IGNORECASE)
+
+
+def paginas_internas(cuerpo: str, base: str, limite: int = MAX_PAGINAS_INTERNAS) -> List[str]:
+    """Páginas de la misma web enlazadas desde la portada (sin la propia portada ni archivos que no son páginas)."""
+    raiz = base if base.endswith("/") else base + "/"
+    propias = []
+    for url in extraer_enlaces(cuerpo, raiz):
+        if not url.startswith(raiz) or url.rstrip("/") == raiz.rstrip("/"):
+            continue
+        ultimo = url.rstrip("/").rsplit("/", 1)[-1]
+        if "." in ultimo and not ultimo.lower().endswith((".html", ".htm")):
+            continue  # imágenes, PDF, zip...
+        propias.append(url)
+    return propias[:limite]
+
+
+def rastrear(session, cuerpo: str, base: str) -> List[str]:
+    """Lista ``"url (código|sin-respuesta)"`` de las páginas internas enlazadas que no responden bien."""
+    rotas = []
+    for url in paginas_internas(cuerpo, base):
+        codigo = _estado(session, url)
+        if codigo is None:
+            rotas.append(f"{url} (sin-respuesta)")
+        elif codigo >= 400 and codigo not in NO_CONCLUYENTES:
+            rotas.append(f"{url} ({codigo})")
+    return rotas
+
+
+def validar_sitemap(session, url: str) -> List[str]:
+    """Avisos sobre un ``sitemap.xml``: ``sitemap-invalido`` o ``sitemap-urls-rotas``. Vacío si está bien o no existe."""
+    try:
+        r = session.get(url, allow_redirects=True)
+        if r.status_code != 200:
+            return []
+        texto = r.text or ""
+    except requests.RequestException:
+        return []
+    if not re.search(r"<(urlset|sitemapindex)\b", texto, re.IGNORECASE):
+        return ["sitemap-invalido"]
+    rotas = [u for u in _LOC.findall(texto)[:MAX_URLS_SITEMAP]
+             if u.startswith(("http://", "https://")) and (_estado(session, u) or 0) == 404]
+    return ["sitemap-urls-rotas"] if rotas else []

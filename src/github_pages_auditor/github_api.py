@@ -1,4 +1,5 @@
 """Proveedor CON token: API REST oficial de GitHub (5.000 peticiones/hora)."""
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -25,6 +26,8 @@ FICHEROS_COMUNIDAD = {
 }
 
 
+LOTE_GRAPHQL = 20
+LIMITE_CONTENIDO = 200_000  # reglas de contenido: solo se mira el principio del archivo
 ESPERA_MAXIMA_S = 60  # si el límite se restablece en menos de esto, se espera y se reintenta una vez
 
 
@@ -72,10 +75,12 @@ def _secret_scanning(raw: dict) -> Optional[bool]:
 
 class GitHubAPIProvider:
     def __init__(self, usuario: str, dominio: str, session: requests.Session, token: Optional[str] = None,
-                 org: bool = False, privados: bool = False, deep: bool = False, check_links: bool = False,
-                 reglas_propias: Sequence[dict] = (), repo_defaults: bool = True):
+                 org: bool = False, privados: bool = False, deep: bool = False, check_links: bool = False, crawl: bool = False,
+                 reglas_propias: Sequence[dict] = (), repo_defaults: bool = True, graphql: bool = False):
         self.usuario = usuario
         self.repo_defaults = repo_defaults
+        self.graphql = graphql
+        self._raiz_graphql: dict = {}
         self._defaults: Optional[dict] = None
         self._defaults_lock = threading.Lock()
         self.reglas_propias = tuple(reglas_propias)
@@ -83,6 +88,7 @@ class GitHubAPIProvider:
         self.privados = privados
         self.deep = deep
         self.check_links = check_links
+        self.crawl = crawl
         self.dominio = dominio
         self.session = session
         # El token solo se envía a api.github.com, nunca a otros hosts.
@@ -90,9 +96,9 @@ class GitHubAPIProvider:
         if token:
             self._headers["Authorization"] = f"Bearer {token}"
 
-    def _get(self, ruta: str, **kwargs):
+    def _get(self, ruta: str, cabeceras: Optional[dict] = None, **kwargs):
         for intento in (1, 2):
-            res = self.session.get(f"{API}{ruta}", headers=self._headers, **kwargs)
+            res = self.session.get(f"{API}{ruta}", headers={**self._headers, **(cabeceras or {})}, **kwargs)
             if res.status_code == 401:
                 raise TokenInvalido("GitHub rechazó el token (401). Comprueba que sea válido y no haya caducado.")
             if res.status_code in (403, 429):
@@ -172,7 +178,38 @@ class GitHubAPIProvider:
         return [f.get("name", "").lower() for f in datos] if isinstance(datos, list) else []
 
     def _archivos_raiz(self, nombre: str) -> List[str]:
+        if nombre in self._raiz_graphql:
+            return self._raiz_graphql[nombre]
         return self._nombres(nombre)
+
+    def precargar_graphql(self, nombres: Sequence[str]) -> int:
+        """``--graphql`` (experimental): lista la raíz de muchos repos con una sola petición por lote.
+
+        Si algo falla (token sin permiso, error de GraphQL, respuesta rara) no se guarda nada y cada repo
+        se consulta por REST como siempre. Devuelve cuántos repos se precargaron.
+        """
+        validos = [n for n in nombres if re.fullmatch(r"[A-Za-z0-9._-]+", n)]
+        for i in range(0, len(validos), LOTE_GRAPHQL):
+            lote = validos[i:i + LOTE_GRAPHQL]
+            partes = " ".join(
+                f'r{j}: repository(owner: "{self.usuario}", name: "{n}") '
+                f'{{ object(expression: "HEAD:") {{ ... on Tree {{ entries {{ name }} }} }} }}'
+                for j, n in enumerate(lote))
+            try:
+                consulta = {"query": f"query {{ {partes} }}"}
+                res = self.session.request("POST", f"{API}/graphql", headers=self._headers, json=consulta)
+                datos = res.json().get("data") if res.status_code == 200 else None
+            except (requests.RequestException, ValueError, AttributeError):
+                continue
+            if not isinstance(datos, dict):
+                continue
+            for j, n in enumerate(lote):
+                repo = datos.get(f"r{j}")
+                objeto = repo.get("object") if isinstance(repo, dict) else None
+                entradas = objeto.get("entries") if isinstance(objeto, dict) else None
+                if isinstance(entradas, list):
+                    self._raiz_graphql[n] = [str(e.get("name", "")).lower() for e in entradas if isinstance(e, dict)]
+        return len(self._raiz_graphql)
 
     def _comunidad(self, repo: RepoInfo, raiz: List[str]) -> None:
         """SECURITY, CONTRIBUTING, CODE_OF_CONDUCT e issue templates: raíz, ``.github/`` o ``docs/``.
@@ -255,11 +292,30 @@ class GitHubAPIProvider:
             self._comprobar_pages(repo)
         return repo
 
+    def leer_archivo(self, repo: RepoInfo, ruta: str) -> Optional[str]:
+        """Texto (hasta ``LIMITE_CONTENIDO``) de un archivo del repo; ``None`` si no existe o no se puede leer."""
+        res = self._get(f"/repos/{self.usuario}/{repo.nombre}/contents/{quote(ruta.strip('/'))}",
+                        cabeceras={"Accept": "application/vnd.github.raw+json"})
+        return res.text[:LIMITE_CONTENIDO] if res.status_code == 200 and isinstance(res.text, str) else None
+
+    def leer_readme(self, repo: RepoInfo) -> Optional[str]:
+        res = self._get(f"/repos/{self.usuario}/{repo.nombre}/readme", cabeceras={"Accept": "application/vnd.github.raw+json"})
+        return res.text[:LIMITE_CONTENIDO] if res.status_code == 200 and isinstance(res.text, str) else None
+
     def _propias(self, repo: RepoInfo) -> None:
         """Reglas propias del TOML: ¿existe cada ruta? (``None`` si la API no responde 200/404)."""
         repo.custom = {}
         for regla in self.reglas_propias:
-            res = self._get(f"/repos/{self.usuario}/{repo.nombre}/contents/{quote(regla['path'].strip('/'))}")
+            ruta = f"/repos/{self.usuario}/{repo.nombre}/contents/{quote(regla['path'].strip('/'))}"
+            if "regex" in regla:  # regla de contenido: ¿el archivo existe y coincide?
+                res = self._get(ruta, cabeceras={"Accept": "application/vnd.github.raw+json"})
+                if res.status_code == 404:
+                    repo.custom[regla["id"]] = False
+                elif res.status_code == 200 and isinstance(res.text, str):
+                    repo.custom[regla["id"]] = re.search(regla["regex"], res.text[:LIMITE_CONTENIDO],
+                                                         re.IGNORECASE | re.MULTILINE) is not None
+                continue
+            res = self._get(ruta)
             if res.status_code in (200, 404):
                 repo.custom[regla["id"]] = res.status_code == 200
 
@@ -335,7 +391,7 @@ class GitHubAPIProvider:
         if salud.problemas:
             # Justo después de un commit GitHub reconstruye las Pages y la web falla unos segundos: no es "rota".
             salud.estado = ESTADO_CONSTRUYENDO if datos.get("status") == "building" else ESTADO_ROTA
-        pages_health.profundizar(self.session, salud, comprobar_enlaces=self.check_links)
+        pages_health.profundizar(self.session, salud, comprobar_enlaces=self.check_links, rastrear=self.crawl)
         repo.pages_salud = salud
         repo.url_pages = salud.url_final or url
         if repo.homepage and repo.url_pages and not _misma_url(repo.homepage, repo.url_pages):

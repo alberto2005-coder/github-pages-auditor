@@ -44,6 +44,20 @@ def test_auditoria_real_de_este_repositorio(token, tmp_path):
     assert datos["schema_version"] == 1
 
 
+def test_opciones_1_6_0_solo_lectura(token, tmp_path):
+    codigo, datos = auditar(token, tmp_path, "--crawl", "--readme-quality", "--dep-licenses", "--graphql")
+    assert codigo == 0
+    repo = datos["repos"][0]
+    assert repo["readme_issues"] is not None and repo["copyleft_dependencies"] is not None
+
+
+def test_varias_cuentas_real(token, tmp_path):
+    salida = tmp_path / "v.json"
+    codigo = cli.main(["-u", f"{USUARIO},{USUARIO}", "-k", token, "--no-env", "-q", "--only", REPO,
+                       "-f", "json", "-o", str(salida)])
+    assert codigo == 0 and json.loads(salida.read_text(encoding="utf-8"))["repos"][0]["name"] == REPO
+
+
 def test_modo_web_sin_token(tmp_path, monkeypatch):
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     salida = tmp_path / "w.json"

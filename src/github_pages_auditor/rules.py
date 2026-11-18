@@ -79,17 +79,44 @@ REGLAS_SEGURIDAD: Dict[str, tuple] = {
     "low-scorecard": ("Puntuación baja en OpenSSF Scorecard",
                       lambda r, c: _propio(r) and r.scorecard is not None and r.scorecard < UMBRAL_SCORECARD),
 }
-REGLAS: Dict[str, tuple] = {**REGLAS_BASICAS, **REGLAS_COMUNIDAD, **REGLAS_PROFUNDAS, **REGLAS_SEGURIDAD}
+# Reglas de la 1.6.0 (opcionales: solo hay dato con --readme-quality / --dep-licenses).
+REGLAS_NUEVAS: Dict[str, tuple] = {
+    "weak-readme": ("README sin instalación, uso o demasiado corto", lambda r, c: _propio(r) and bool(r.readme_problemas)),
+    "copyleft-dependency": ("Dependencias con licencia copyleft (GPL/AGPL)", lambda r, c: _propio(r) and bool(r.deps_copyleft)),
+}
+REGLAS: Dict[str, tuple] = {**REGLAS_BASICAS, **REGLAS_COMUNIDAD, **REGLAS_PROFUNDAS, **REGLAS_SEGURIDAD, **REGLAS_NUEVAS}
 REGLA_ERRORES = "analysis-errors"  # repos que no se pudieron analizar (red)
 BASICAS = tuple(REGLAS_BASICAS) + (REGLA_ERRORES,)  # lo que significa 'any' (como en 1.2)
-COMUNIDAD = tuple(REGLAS_COMUNIDAD) + tuple(REGLAS_PROFUNDAS) + tuple(REGLAS_SEGURIDAD)
+COMUNIDAD = tuple(REGLAS_COMUNIDAD) + tuple(REGLAS_PROFUNDAS) + tuple(REGLAS_SEGURIDAD) + tuple(REGLAS_NUEVAS)
 TODAS = BASICAS + COMUNIDAD  # 'all'
 
 
 # --- Reglas propias (1.5.0): ``[[custom_rules]]`` del TOML. Su id siempre empieza por ``custom-``.
 PATRON_ID_PROPIA = re.compile(r"^custom-[a-z0-9]+(-[a-z0-9]+)*$")
-TIPOS_PROPIOS = ("file-required", "file-forbidden")
+TIPOS_PROPIOS = ("file-required", "file-forbidden", "content-required", "content-forbidden")
+TIPOS_CONTENIDO = ("content-required", "content-forbidden")
 MENSAJES_PROPIOS: Dict[str, str] = {}  # id -> descripción (para los informes)
+
+
+def _validar_patron(rid: str, tipo: str, d: dict) -> Optional[str]:
+    """Devuelve la expresión regular (``contains`` se escapa) de una regla de contenido, o ``None`` si no aplica."""
+    contains, regex = d.get("contains"), d.get("regex")
+    if tipo not in TIPOS_CONTENIDO:
+        if contains is not None or regex is not None:
+            raise ValueError(f"'custom_rules' '{rid}': 'contains'/'regex' solo valen con type "
+                             f"{' o '.join(TIPOS_CONTENIDO)}")
+        return None
+    if (contains is None) == (regex is None):
+        raise ValueError(f"'custom_rules' '{rid}': indica exactamente una de 'contains' o 'regex'")
+    texto = contains if contains is not None else regex
+    if not isinstance(texto, str) or not texto.strip() or len(texto) > 200:
+        raise ValueError(f"'custom_rules' '{rid}': 'contains'/'regex' debe ser texto de 1 a 200 caracteres")
+    patron = re.escape(texto) if contains is not None else texto
+    try:
+        re.compile(patron)
+    except re.error as e:
+        raise ValueError(f"'custom_rules' '{rid}': expresión regular no válida ({e})") from None
+    return patron
 
 
 def validar_reglas_propias(datos: Any) -> Tuple[dict, ...]:
@@ -98,9 +125,10 @@ def validar_reglas_propias(datos: Any) -> Tuple[dict, ...]:
         raise ValueError("'custom_rules' debe ser una lista de tablas ([[custom_rules]])")
     reglas, vistos = [], set()
     for d in datos:
-        extra = set(d) - {"id", "path", "type", "message"}
+        extra = set(d) - {"id", "path", "type", "message", "contains", "regex"}
         if extra:
-            raise ValueError(f"'custom_rules': claves desconocidas {sorted(extra)}. Válidas: id, path, type, message")
+            raise ValueError(f"'custom_rules': claves desconocidas {sorted(extra)}. "
+                             "Válidas: id, path, type, message, contains, regex")
         rid, ruta = d.get("id"), d.get("path")
         if not isinstance(rid, str) or not PATRON_ID_PROPIA.match(rid):
             raise ValueError(f"'custom_rules': el id {rid!r} no es válido; debe empezar por 'custom-' "
@@ -112,13 +140,21 @@ def validar_reglas_propias(datos: Any) -> Tuple[dict, ...]:
         tipo = d.get("type", "file-required")
         if tipo not in TIPOS_PROPIOS:
             raise ValueError(f"'custom_rules' '{rid}': 'type' debe ser {' o '.join(TIPOS_PROPIOS)}")
+        patron = _validar_patron(rid, tipo, d)
         mensaje = d.get("message")
         if mensaje is not None and not isinstance(mensaje, str):
             raise ValueError(f"'custom_rules' '{rid}': 'message' debe ser texto")
         vistos.add(rid)
-        reglas.append({"id": rid, "path": ruta.strip(), "type": tipo,
-                       "message": (mensaje or "").strip() or (
-                           f"Falta '{ruta.strip()}'" if tipo == "file-required" else f"No debería existir '{ruta.strip()}'")})
+        por_defecto = {
+            "file-required": f"Falta '{ruta.strip()}'",
+            "file-forbidden": f"No debería existir '{ruta.strip()}'",
+            "content-required": f"'{ruta.strip()}' no contiene lo esperado",
+            "content-forbidden": f"'{ruta.strip()}' contiene algo que no debería",
+        }[tipo]
+        regla = {"id": rid, "path": ruta.strip(), "type": tipo, "message": (mensaje or "").strip() or por_defecto}
+        if patron:
+            regla["regex"] = patron
+        reglas.append(regla)
     return tuple(reglas)
 
 
@@ -160,7 +196,7 @@ def _incumple(r: RepoInfo, regla: dict) -> bool:
     presente = (r.custom or {}).get(regla["id"])
     if presente is None or not _propio(r):
         return False  # sin dato (modo web o sin permisos) no se afirma nada
-    return (not presente) if regla["type"] == "file-required" else presente
+    return (not presente) if regla["type"].endswith("required") else presente
 
 
 def evaluar(repos: List[RepoInfo], stale_meses: int = STALE_MESES_DEFECTO,

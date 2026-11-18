@@ -753,6 +753,20 @@ $env:GITHUB_TOKEN = "ghp_xxx"      # token sin permisos especiales (repos públi
 
 ---
 
+## 18. Novedades de la 1.6.0
+
+**Automáticas** (`tests/test_v160.py`; CI en verde obligatorio). **Ninguna prueba manual es obligatoria.**
+
+- [x] **18.1 `--crawl`**, **18.2 reglas con contenido**, **18.3 `--readme-quality`**, **18.4 `--dep-licenses`**, **18.5 `--init`**, **18.6 `--fix-only`/`--fix-log`**, **18.7 `-u a,b`**, **18.8 `--graphql`** (con y sin error → REST). **18.9 caché ETag** (aciertos, `--cache-clear`, caducidad) y **18.10 webhook** (Teams, `--notify-on always`, reintento, `--notify-test`). **Resultado:** Auto: `tests/test_v160.py`.
+
+**Opcional, solo lectura, un solo comando** (cubre 18.1, 18.3, 18.4, 18.7 y 18.8 contra GitHub real):
+
+```powershell
+$env:GITHUB_TOKEN="TU_TOKEN"; $env:RUN_LIVE="1"; uv run pytest -m live -q
+```
+
+Si `--graphql` o `--dep-licenses` fallan en tu cuenta, se arreglan en la 1.6.1; no afectan al resto (`--graphql` vuelve a REST solo).
+
 ## Resumen final
 
 | Bloque | Pasan | Fallan | Notas |

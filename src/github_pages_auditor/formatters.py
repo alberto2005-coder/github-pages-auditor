@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Sequence
 from . import NOMBRE_PROGRAMA, URL_GITHUB, __version__
 from .errors import ErrorSalida
 from .i18n import t
-from .models import AuditReport, RepoInfo
+from .models import AuditReport, RepoInfo, ruta_github
 from .rules import REGLA_ERRORES
 from .score import nota, ranking
 
@@ -35,6 +35,7 @@ def _repo_a_dict(r: RepoInfo) -> dict:
             "warnings": s.avisos,
             "tls_days_left": s.tls_dias,
             "broken_links": s.enlaces_rotos,
+            "broken_pages": s.paginas_rotas,
             "size_bytes": s.peso_bytes,
         },
         "pages_url": r.url_pages,
@@ -77,6 +78,8 @@ def _repo_a_dict(r: RepoInfo) -> dict:
             "high_alerts": r.alertas_altas,
         },
         "scorecard": r.scorecard,
+        "readme_issues": r.readme_problemas,
+        "copyleft_dependencies": r.deps_copyleft,
         "inherited_files": r.heredados,
         "custom": r.custom,
         "error": r.error,
@@ -153,7 +156,7 @@ def bloque_markdown(report: AuditReport, incluir_forks: bool = False, detalles: 
             lineas += [f"| {t('md_project')} | {t('md_demo')} | {t('md_desc')} |", "| --- | --- | --- |"]
         for r in vivas:
             desc = r.descripcion or (r.pages_salud.titulo if r.pages_salud else "")
-            fila = (f"| [{_celda(r.nombre)}](https://github.com/{report.usuario}/{r.nombre}) "
+            fila = (f"| [{_celda(r.nombre)}](https://github.com/{ruta_github(r, report.usuario)}) "
                     f"| [{t('md_open')}]({r.url_pages}) |")
             if detalles:
                 fila += f" {'' if r.estrellas is None else r.estrellas} | {(r.ultimo_push or '')[:10]} |"

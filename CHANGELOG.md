@@ -2,6 +2,28 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). / Format based on Keep a Changelog.
 
+## [1.6.0] - 2026-11-18
+
+### Añadido / Added
+- **`--crawl`:** rastrea hasta 10 páginas internas de cada web y valida el `sitemap.xml` (avisos informativos `paginas-internas-rotas`, `sitemap-invalido`, `sitemap-urls-rotas`; campo JSON `pages.broken_pages`). / Crawls up to 10 internal pages and validates the sitemap.
+- **Reglas propias con contenido:** `type = "content-required"` o `"content-forbidden"` con `contains` o `regex` en `[[custom_rules]]`. / Custom rules that check file contents.
+- **`--readme-quality`:** regla `weak-readme` (README sin instalación, sin uso o demasiado corto; campo `readme_issues`). / README quality rule.
+- **`--dep-licenses`:** regla `copyleft-dependency` (dependencias GPL/AGPL en `pyproject.toml`, `requirements.txt` y `package.json`, consultando PyPI y npm; campo `copyleft_dependencies`). / Copyleft dependency rule.
+- **`--init`:** crea un `.github-pages-auditor.toml` de partida sin secretos (con `--yes` lo sobrescribe). / Starter config file.
+- **`--fix-only REGLAS`** (solo esas reglas de archivos; implica `--fix`) y **`--fix-log ARCHIVO`** (JSON de lo planeado o aplicado). / Selective fixes and a fix log.
+- **`-u a,b`:** varias cuentas en un solo informe, con los repos como `cuenta/repo` (no con `--org` ni `--fix*`). / Several accounts in one report.
+- **`--graphql` (experimental):** lista la raíz de los repos con GraphQL en lotes de 20; si algo falla, usa REST como siempre. / Experimental batched root listing.
+- **Caché ETag mejorada:** al terminar muestra cuántas peticiones no gastaron cuota (`💾 Caché: N de M`), `--cache-clear` la borra (solo sus archivos) y las entradas sin usar en 30 días se eliminan solas. / ETag cache stats, `--cache-clear` and automatic pruning.
+- **Avisos por webhook mejorados:** formato para Microsoft Teams, `--notify-on always` (resumen también cuando no hay nada nuevo), un reintento si el servicio responde 429 o 5xx y `--notify-test` para probar el webhook sin auditar. / Teams format, `--notify-on always`, one retry and `--notify-test`.
+- **Licencia en PyPI:** se añade el clasificador `License :: OSI Approved :: MIT License` junto a `license = "MIT"`, para que herramientas que no leen el campo moderno también la vean. / Added the MIT license classifier for tools that ignore the PEP 639 field.
+
+### Cambiado / Changed
+- `schema_version` sigue en 1: solo se añaden campos (`pages.broken_pages`, `readme_issues`, `copyleft_dependencies`; `user` puede ser `a+b` con varias cuentas). / `schema_version` is still 1: additive only.
+- Las reglas nuevas son opcionales y no puntúan, así la nota sigue siendo comparable con la de la 1.5.x. / The new rules are opt-in and do not affect the score.
+
+### Sin probar contra GitHub real / Not validated against the real API
+- `--graphql`, `--dep-licenses` y `--readme-quality` se han probado con respuestas simuladas; si algo falla en tu cuenta, abre un issue. / Tested with simulated responses only.
+
 ## [1.5.0] - 2026-11-16
 
 ### Añadido / Added

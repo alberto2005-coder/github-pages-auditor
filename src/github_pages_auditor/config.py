@@ -55,6 +55,17 @@ class Config:
     incluir_privados: bool = False
     deep: bool = False
     check_links: bool = False
+    crawl: bool = False
+    cache_clear: bool = False
+    notify_on: str = "new"
+    notify_test: bool = False
+    graphql: bool = False
+    usuarios: Tuple[str, ...] = ()  # varias cuentas (-u a,b); vacío con una sola
+    init: bool = False
+    fix_only: Tuple[str, ...] = ()
+    fix_log: Optional[str] = None
+    readme_quality: bool = False
+    dep_licenses: bool = False
     min_score: Optional[int] = None
     history: Optional[str] = None
     lang: str = "es"
@@ -110,6 +121,12 @@ def _lista(texto: str) -> Tuple[str, ...]:
     return tuple(dict.fromkeys(t.strip() for t in texto.split(",") if t.strip()))
 
 
+def _usa_extras(reglas: Tuple[str, ...]) -> bool:
+    """¿Alguna de las reglas de ``--fix-only`` es de las de ``--fix-extra`` (LICENSE, .gitignore, Dependabot, CI)?"""
+    from .fix import EXTRAS
+    return any(r in EXTRAS for r in reglas)
+
+
 class ErrorConfig(ValueError):
     """El archivo de configuración no es válido."""
 
@@ -123,7 +140,10 @@ CLAVES_ARCHIVO: Dict[str, Tuple[str, Any]] = {
     "details": ("details", bool), "sort": ("orden", str), "no_api": ("forzar_web", bool),
     "quiet": ("quiet", bool), "no_color": ("sin_color", bool), "baseline": ("baseline", str),
     "org": ("org", str), "include_private": ("incluir_privados", bool), "deep": ("deep", bool),
-    "check_links": ("check_links", bool), "min_score": ("min_score", int), "history": ("history", str),
+    "check_links": ("check_links", bool), "crawl": ("crawl", bool), "graphql": ("graphql", bool),
+    "notify_on": ("notify_on", str),
+    "readme_quality": ("readme_quality", bool), "dep_licenses": ("dep_licenses", bool),
+    "min_score": ("min_score", int), "history": ("history", str),
     "lang": ("lang", str), "cache": ("cache", str), "since": ("since", str),
     "scorecard": ("scorecard", bool), "defaults_repo": ("repo_defaults", bool), "custom_rules": ("reglas_propias", "reglas"),
 }
@@ -275,6 +295,33 @@ def crear_parser(archivo: Optional[Dict[str, Any]] = None) -> argparse.ArgumentP
                         help="Audita los repos de una organización en lugar de los de un usuario.")
     parser.add_argument("--include-private", dest="incluir_privados", action="store_true",
                         help="Con token: incluye también tus repos privados (los del usuario del token).")
+    parser.add_argument("--readme-quality", dest="readme_quality", action="store_true",
+                        help="Revisa el README de cada repo (instalación, uso, longitud) y activa la regla weak-readme. "
+                             "Solo modo API.")
+    parser.add_argument("--dep-licenses", dest="dep_licenses", action="store_true",
+                        help="Busca dependencias GPL/AGPL en pyproject.toml, requirements.txt y package.json "
+                             "(regla copyleft-dependency). Solo modo API.")
+    parser.add_argument("--init", dest="init", action="store_true",
+                        help=f"Crea un {ARCHIVO_CONFIG} de partida en la carpeta actual (con --yes lo sobrescribe). "
+                             "No audita nada.")
+    parser.add_argument("--fix-only", dest="fix_only", metavar="REGLAS",
+                        help="Con --fix: solo crea los archivos de estas reglas (lista separada por comas, p. ej. "
+                             "missing-license,missing-security-policy). Implica --fix.")
+    parser.add_argument("--fix-log", dest="fix_log", metavar="ARCHIVO",
+                        help="Con --fix*: guarda en un JSON lo planeado o aplicado (para poder revertirlo).")
+    parser.add_argument("--graphql", dest="graphql", action="store_true",
+                        help="(Experimental) Lista la raíz de los repos con GraphQL, en lotes: menos peticiones a la API. "
+                             "Si falla, usa REST como siempre. Solo modo API.")
+    parser.add_argument("--cache-clear", dest="cache_clear", action="store_true",
+                        help="Borra la caché ETag (la carpeta de --cache, o la de 'auto') y sale. No audita nada.")
+    parser.add_argument("--notify-on", dest="notify_on", choices=("new", "always"), default="new",
+                        help="Con --notify-webhook: new = solo si hay hallazgos nuevos (por defecto); "
+                             "always = también un resumen cuando no hay nada nuevo.")
+    parser.add_argument("--notify-test", dest="notify_test", action="store_true",
+                        help="Envía un mensaje de prueba a --notify-webhook y sale. No audita nada.")
+    parser.add_argument("--crawl", dest="crawl", action="store_true",
+                        help="Rastrea hasta 10 páginas internas de cada web y valida su sitemap.xml "
+                             "(avisos paginas-internas-rotas, sitemap-invalido, sitemap-urls-rotas).")
     parser.add_argument("--check-links", dest="check_links", action="store_true",
                         help="Comprueba los enlaces de la portada de cada web (máx. 50 por sitio).")
     parser.add_argument("--fix", dest="fix", action="store_true",
@@ -365,9 +412,26 @@ def parse_args(args=None) -> Config:
     usuario = (parsed.usuario or "").strip()
     if org:
         usuario = org
-    if not usuario and not (parsed.doctor or parsed.diff):
+    if not usuario and not (parsed.doctor or parsed.diff or parsed.init
+                            or parsed.cache_clear or parsed.notify_test):
         parser.error("El usuario de GitHub es obligatorio. Usa -u <usuario> (o --org <organización>) "
                      "o define USUARIO_GITHUB.")
+    fix_only = tuple(dict.fromkeys(r.strip() for r in (parsed.fix_only or "").split(",") if r.strip()))
+    if parsed.fix_only is not None:
+        from .fix import EXTRAS, PLANTILLAS
+        validas = tuple(PLANTILLAS) + tuple(EXTRAS)
+        malas = [r for r in fix_only if r not in validas]
+        if not fix_only or malas:
+            parser.error(f"--fix-only: reglas no válidas {malas or ''}. Válidas: {', '.join(validas)}.")
+    usuarios = tuple(dict.fromkeys(u.strip() for u in usuario.split(",") if u.strip()))
+    if len(usuarios) > 1:
+        if org or parsed.incluir_privados or parsed.fix or parsed.fix_pages or parsed.fix_metadata \
+                or parsed.fix_extra or parsed.fix_only:
+            parser.error("Con varias cuentas (-u a,b) no se pueden usar --org, --include-private ni --fix*.")
+        usuario = "+".join(usuarios)
+    else:
+        usuario = usuarios[0] if usuarios else usuario
+        usuarios = ()
     if parsed.min_score is not None and not 0 <= parsed.min_score <= 100:
         parser.error("--min-score debe estar entre 0 y 100.")
     if parsed.since:
@@ -395,7 +459,8 @@ def parse_args(args=None) -> Config:
 
     return Config(
         usuario=usuario,
-        dominio_web=normalizar_dominio(parsed.dominio_web, usuario),
+        dominio_web=normalizar_dominio(None if usuarios else parsed.dominio_web, usuario),
+        usuarios=usuarios,
         github_token=(parsed.github_token or "").strip() or None,
         archivo_salida=salida,
         max_workers=parsed.max_workers,
@@ -416,13 +481,23 @@ def parse_args(args=None) -> Config:
         baseline=parsed.baseline,
         org=org,
         incluir_privados=parsed.incluir_privados,
-        deep=parsed.deep or parsed.fix_extra,
+        deep=parsed.deep or parsed.fix_extra or _usa_extras(fix_only),
         check_links=parsed.check_links,
+        crawl=parsed.crawl,
+        cache_clear=parsed.cache_clear,
+        notify_on=parsed.notify_on,
+        notify_test=parsed.notify_test,
+        graphql=parsed.graphql,
+        init=parsed.init,
+        fix_only=fix_only,
+        fix_log=parsed.fix_log,
+        readme_quality=parsed.readme_quality,
+        dep_licenses=parsed.dep_licenses,
         min_score=parsed.min_score,
         history=parsed.history,
         lang=parsed.lang,
         webhook=(parsed.webhook or "").strip() or None,
-        fix=parsed.fix or parsed.fix_extra,
+        fix=parsed.fix or parsed.fix_extra or bool(fix_only),
         fix_pages=parsed.fix_pages,
         fix_metadata=parsed.fix_metadata,
         dry_run=parsed.dry_run,
@@ -432,7 +507,7 @@ def parse_args(args=None) -> Config:
         since=parsed.since,
         doctor=parsed.doctor,
         diff=tuple(parsed.diff or ()),
-        fix_extra=parsed.fix_extra,
+        fix_extra=parsed.fix_extra or _usa_extras(fix_only),
         fix_mode=parsed.fix_mode,
         licencia=parsed.licencia,
         scorecard=parsed.scorecard,

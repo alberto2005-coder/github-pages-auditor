@@ -1,6 +1,6 @@
 [project]
 name = "github-pages-auditor"
-version = "1.5.0"
+version = "1.6.0"
 description = "Audit all the repositories of a GitHub user or organization: GitHub Pages health (broken sites, HTTPS, TLS, DNS, broken links), a 0-100 health score, missing LICENSE/SECURITY.md/CI/Dependabot, and automatic fixes via Pull Requests. JSON, HTML, CSV and SARIF output and CI exit codes. Works with or without a token."
 readme = "README.md"
 license = "MIT"
@@ -17,6 +17,7 @@ keywords = [
     "security-policy", "dependabot", "openssf-scorecard", "github-actions", "devops",
 ]
 classifiers = [
+  "License :: OSI Approved :: MIT License",
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
